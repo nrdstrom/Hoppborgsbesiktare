@@ -672,11 +672,16 @@
                 `,
                 
                 corners: `
-                    <h3 class="font-bold mb-3">${app.lang === 'sv' ? '🕸️ Nät måste nå hörnen' : '🕸️ Nets must reach corners'}</h3>
+                    <h3 class="font-bold mb-3">${app.lang === 'sv' ? '🕸️ Nät måste vara sydda längst ut i hörnen' : '🕸️ Nets must be sewn to corners'}</h3>
                     
                     <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-3">
                         <p class="text-sm font-semibold">${app.lang === 'sv' ? 'Varför är detta viktigt?' : 'Why is this important?'}</p>
                         <p class="text-sm">${app.lang === 'sv' ? 'Öppna hörn = risk för att barn fastnar mellan väggen och nätet, eller faller ut i hörnet.' : 'Open corners = risk of children getting trapped between wall and net, or falling out at corners.'}</p>
+                    </div>
+                    
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mb-3">
+                        <p class="text-sm"><strong>${app.lang === 'sv' ? 'Maskstorlek:' : 'Mesh size:'}</strong> ${app.lang === 'sv' ? 'Max 8mm även i hörnen - samma som övriga delar av nätet' : 'Max 8mm also in corners - same as other parts of the net'}</p>
+                        <p class="text-xs text-gray-600 mt-1">Ref: 4.1.3</p>
                     </div>
                     
                     <svg viewBox="0 0 200 200" class="w-full border-2 rounded bg-white mb-3">
@@ -701,9 +706,9 @@
                         <line x1="60" y1="20" x2="140" y2="20" stroke="#4caf50" stroke-width="3" opacity="0.5"/>
                         <line x1="60" y1="180" x2="140" y2="180" stroke="#4caf50" stroke-width="3" opacity="0.5"/>
                         
-                        <text x="100" y="85" text-anchor="middle" font-weight="bold" font-size="10" fill="#4caf50">${app.lang === 'sv' ? 'NÄT MÅSTE VARA SYDDA' : 'NETS MUST BE SEWN'}</text>
-                        <text x="100" y="100" text-anchor="middle" font-weight="bold" font-size="10" fill="#4caf50">${app.lang === 'sv' ? 'LÄNGST UT I' : 'ALL THE WAY TO'}</text>
-                        <text x="100" y="115" text-anchor="middle" font-weight="bold" font-size="10" fill="#4caf50">${app.lang === 'sv' ? 'ALLA HÖRN' : 'ALL CORNERS'}</text>
+                        <text x="100" y="88" text-anchor="middle" font-weight="bold" font-size="9" fill="#4caf50">${app.lang === 'sv' ? 'NÄT MÅSTE VARA' : 'NETS MUST BE'}</text>
+                        <text x="100" y="100" text-anchor="middle" font-weight="bold" font-size="9" fill="#4caf50">${app.lang === 'sv' ? 'SYDDA LÄNGST UT' : 'SEWN ALL THE WAY'}</text>
+                        <text x="100" y="112" text-anchor="middle" font-weight="bold" font-size="9" fill="#4caf50">${app.lang === 'sv' ? 'I ALLA HÖRN' : 'TO ALL CORNERS'}</text>
                     </svg>
                     
                     <div class="space-y-2 text-sm">
@@ -714,7 +719,7 @@
                         
                         <div class="bg-green-50 p-2 rounded border-l-4 border-green-500">
                             <p class="font-semibold text-green-700">✓ ${app.lang === 'sv' ? 'GODKÄNT' : 'APPROVED'}:</p>
-                            <p>${app.lang === 'sv' ? 'Nätet går hela vägen till varje hörn (röda cirklar ovan)' : 'Net goes all the way to each corner (red circles above)'}</p>
+                            <p>${app.lang === 'sv' ? 'Nätet är sytt hela vägen ut till varje hörn (röda cirklar). Max 8mm maskor.' : 'Net is sewn all the way to each corner (red circles). Max 8mm mesh.'}</p>
                         </div>
                     </div>
                     
