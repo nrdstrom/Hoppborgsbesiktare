@@ -10,8 +10,8 @@
 <body class="bg-gray-50">
     <div id="app" class="max-w-4xl mx-auto p-4"></div>
     
-    <div id="modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onclick="closeModal()">
-        <div class="bg-white rounded-lg p-6 max-w-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+    <div id="modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="closeModal()">
+        <div class="bg-white rounded-lg p-6 max-w-2xl max-h-[90vh] overflow-y-auto mx-4" onclick="event.stopPropagation()">
             <button onclick="closeModal()" class="float-right text-3xl text-gray-500 hover:text-gray-700">&times;</button>
             <div id="modalContent"></div>
         </div>
@@ -20,347 +20,74 @@
     <script>
         const app = {
             data: {
-                // Grunduppgifter
-                length: '', width: '', height: '', type: '',
-                
-                // Konstruktion
+                length: '', width: '', height: '', type: '', productId: '', idVisible: '',
+                hasSafetyInstructions: false, hasRopes: '', 
                 platformHeight: '', wallHeight: '',
-                
-                // Slide
                 hasSlide: '', slideHeight: '', runoutLength: '', hasStopWall: false,
-                
-                // Trappa/Ingång
                 entranceHeight: '', entranceTreadDepth: '',
-                
-                // Förankring
-                anchorA: '', anchorB: '', anchorC: '', anchorD: '', anchorAngle: '',
-                
-                // Lufttryck
-                blowersNeeded: '', blowerPower: '', blowerTubeLength: '',
-                
-                // Märkning
-                productId: '', idVisible: '', hasSafetyInstructions: false,
+                blowerTubeLength: '',
                 manufacturerMaxUsers: '', manufacturerUserHeight: '',
-                
-                // Säkerhet
-                hasRopes: '', hasNetting: '', nettingMesh: '', nettingCorners: '',
-                
-                // Underlag
-                surfaceType: '', impactAreaWidth: '',
-                
-                // Bilder
+                anchorA: '', anchorB: '', anchorC: '', anchorD: '', anchorAngle: '', 
+                hasNetting: '', nettingMesh: '', nettingCorners: '',
+                blowersNeeded: '', blowerPower: '', 
                 images: []
             },
-            result: null,
-            cameraActive: false,
-            stream: null
+            result: null, cameraActive: false, stream: null
         };
 
-        // Beräkningsfunktioner
-        function calc() {
-            const L = parseFloat(app.data.length) || 0;
-            const W = parseFloat(app.data.width) || 0;
-            const H = parseFloat(app.data.height) || 0;
-            if (!L || !W || !H) return null;
-
-            const calcSide = (len, height) => {
-                const area = len * height;
-                const F = 0.5 * 1.5 * 1.24 * 11.1 * 11.1 * area;
-                const n = F / 1600;
-                return Math.max(Math.ceil(n), 2);
-            };
-
-            const anchors = {
-                A: { name: 'Sida A', len: L, need: calcSide(L, H) },
-                B: { name: 'Sida B (Höger)', len: W, need: calcSide(W, H) },
-                C: { name: 'Sida C (Back)', len: L, need: calcSide(L, H) },
-                D: { name: 'Sida D (Vänster)', len: W, need: calcSide(W, H) }
-            };
-
-            const totalAnchors = Object.values(anchors).reduce((s, a) => s + a.need, 0);
-            const minAnchors = Math.max(6, totalAnchors);
-            
-            const volume = L * W * H;
-            const blowersNeeded = Math.ceil(volume / 100);
-
-            // Run-out beräkning
-            const slideH = parseFloat(app.data.slideHeight) || 0;
-            const minRunout = Math.max(slideH * 0.5, 0.3);
-            const runoutRequired = minRunout + (app.data.hasStopWall ? 0.5 : 0);
-
-            // Trappdjup krav
-            const platformH = parseFloat(app.data.platformHeight) || 0;
-            const minTreadDepth = platformH * 1.5;
-
-            return { 
-                anchors, minAnchors, L, W, H, blowersNeeded,
-                runoutRequired, minRunout, minTreadDepth
-            };
-        }
-
-        function validate() {
-            const c = calc();
-            if (!c) {
-                alert('Fyll i längd, bredd och höjd först');
-                return;
-            }
-
-            const issues = [];
-            
-            // KRITISKA FEL
-            if (app.data.hasRopes === 'yes') {
-                issues.push({ 
-                    severity: 'critical',
-                    cat: 'Säkerhet', 
-                    msg: 'REP FÖRBJUDET! Risk för strypning', 
-                    ref: '4.1.4',
-                    action: 'Ta bort alla rep omedelbart'
-                });
-            }
-
-            if (!app.data.productId) {
-                issues.push({ 
-                    severity: 'critical',
-                    cat: 'Märkning', 
-                    msg: 'Produkt-ID saknas', 
-                    ref: '8',
-                    action: 'Märk borgen med unikt ID'
-                });
-            }
-
-            if (app.data.idVisible === 'no') {
-                issues.push({ 
-                    severity: 'critical',
-                    cat: 'Märkning', 
-                    msg: 'ID ej synligt under användning', 
-                    ref: '8',
-                    action: 'Flytta ID-märkning så den syns'
-                });
-            }
-
-            // Förankring
-            ['A', 'B', 'C', 'D'].forEach(side => {
-                const supplied = parseInt(app.data['anchor' + side]) || 0;
-                const req = c.anchors[side].need;
-                if (supplied > 0 && supplied < req) {
-                    issues.push({ 
-                        severity: 'critical',
-                        cat: \`Förankring / Sida \${side}\`, 
-                        msg: \`\${supplied} st < \${req} st krävs\`, 
-                        ref: 'Annex A',
-                        action: \`Lägg till \${req - supplied} fästpunkter\`
-                    });
-                }
-            });
-
-            // ALLVARLIGA FEL
-            const angle = parseInt(app.data.anchorAngle) || 0;
-            if (angle > 0 && (angle < 30 || angle > 45)) {
-                issues.push({ 
-                    severity: 'serious',
-                    cat: 'Förankring', 
-                    msg: \`Vinkel \${angle}° (ska vara 30-45°)\`, 
-                    ref: '4.2.1',
-                    action: 'Justera förankringsvinkeln'
-                });
-            }
-
-            // Slide run-out
-            if (app.data.hasSlide === 'yes') {
-                const runoutActual = parseFloat(app.data.runoutLength) || 0;
-                if (runoutActual > 0 && runoutActual < c.runoutRequired) {
-                    issues.push({ 
-                        severity: 'critical',
-                        cat: 'Slide / Run-out', 
-                        msg: \`\${runoutActual}m < \${c.runoutRequired.toFixed(2)}m krävs\`, 
-                        ref: '4.2.11',
-                        action: \`Förläng run-out med \${(c.runoutRequired - runoutActual).toFixed(2)}m\`
-                    });
-                }
-            }
-
-            // Inblåsrör
-            const tubeLen = parseFloat(app.data.blowerTubeLength) || 0;
-            if (tubeLen > 0 && tubeLen < 1.2) {
-                issues.push({ 
-                    severity: 'serious',
-                    cat: 'Lufttryck', 
-                    msg: \`Inblåsrör \${tubeLen}m < 1.2m minimum\`, 
-                    ref: '4.2.4',
-                    action: 'Byt till längre rör (minst 1.4m rekommenderas)'
-                });
-            }
-
-            // Trappdjup
-            const treadDepth = parseFloat(app.data.entranceTreadDepth) || 0;
-            if (treadDepth > 0 && c.minTreadDepth > 0 && treadDepth < c.minTreadDepth) {
-                issues.push({ 
-                    severity: 'serious',
-                    cat: 'Ingång', 
-                    msg: \`Trappdjup \${treadDepth}m < \${c.minTreadDepth.toFixed(2)}m (1.5× plattformshöjd)\`, 
-                    ref: '4.2.3',
-                    action: 'Förläng trappdjupet'
-                });
-            }
-
-            // VARNINGAR
-            if (!app.data.hasSafetyInstructions) {
-                issues.push({ 
-                    severity: 'warning',
-                    cat: 'Märkning', 
-                    msg: 'Säkerhetsinstruktion saknas', 
-                    ref: '6',
-                    action: 'Fäst tydliga säkerhetsinstruktioner'
-                });
-            }
-
-            if (app.data.hasNetting === 'yes') {
-                const mesh = parseFloat(app.data.nettingMesh) || 0;
-                if (mesh > 8) {
-                    issues.push({ 
-                        severity: 'serious',
-                        cat: 'Nät', 
-                        msg: \`Maskstorlek \${mesh}mm > 8mm\`, 
-                        ref: '4.1.3',
-                        action: 'Byt till nät med mindre maskor'
-                    });
-                }
-                if (app.data.nettingCorners === 'no') {
-                    issues.push({ 
-                        severity: 'serious',
-                        cat: 'Nät', 
-                        msg: 'Näten når inte hörnen', 
-                        ref: '4.2.9',
-                        action: 'Montera nät som når alla hörn'
-                    });
-                }
-            }
-
-            const blowers = parseInt(app.data.blowersNeeded) || 0;
-            if (blowers > 0 && blowers < c.blowersNeeded) {
-                issues.push({ 
-                    severity: 'serious',
-                    cat: 'Lufttryck', 
-                    msg: \`\${blowers} fläktar < \${c.blowersNeeded} krävs för denna volym\`, 
-                    ref: '4.2.2',
-                    action: \`Lägg till \${c.blowersNeeded - blowers} fläktar\`
-                });
-            }
-
-            // Kategorisera
-            const critical = issues.filter(i => i.severity === 'critical');
-            const serious = issues.filter(i => i.severity === 'serious');
-            const warnings = issues.filter(i => i.severity === 'warning');
-
-            app.result = { 
-                calc: c, 
-                issues, 
-                critical,
-                serious,
-                warnings,
-                ok: critical.length === 0 && serious.length === 0
-            };
-            
-            localStorage.setItem('hoppborg', JSON.stringify(app));
-            render();
-        }
-
-        // Modal functions
         function showInfo(type) {
             const m = document.getElementById('modalContent');
-            
             const modals = {
-                height: \`
-                    <h3 class="font-bold text-lg mb-3">📏 Hur mäter man höjd?</h3>
-                    <svg viewBox="0 0 200 150" class="w-full max-w-xs border-2 rounded bg-white mb-3">
-                        <rect x="20" y="80" width="160" height="60" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>
-                        <line x1="20" y1="140" x2="180" y2="140" stroke="#000" stroke-width="2"/>
-                        <text x="100" y="155" text-anchor="middle" font-size="10">MARK</text>
-                        <line x1="10" y1="80" x2="10" y2="140" stroke="#f44336" stroke-width="2"/>
-                        <text x="5" y="110" font-size="14" fill="#f44336" font-weight="bold">H</text>
-                        <circle cx="100" cy="50" r="20" fill="#ffd700" opacity="0.3"/>
-                        <text x="100" y="45" text-anchor="middle" font-size="8">Dekor</text>
-                        <text x="100" y="55" text-anchor="middle" font-size="7">(räknas EJ)</text>
-                    </svg>
-                    <p class="text-sm mb-2"><strong class="text-green-600">✓ Rätt:</strong> Mät till väggarnas överkant</p>
-                    <p class="text-sm mb-2"><strong class="text-red-600">✗ Fel:</strong> Inkludera dekorationer på taket</p>
-                    <p class="text-xs text-gray-600 mt-3">Ref: Annex A - "area of exposed surface"</p>
-                \`,
+                height: '<h3 class="font-bold text-lg mb-3">📏 Hur mäter man höjd?</h3>' +
+                    '<svg viewBox="0 0 200 150" class="w-full max-w-xs border-2 rounded bg-white mb-3">' +
+                    '<rect x="20" y="80" width="160" height="60" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>' +
+                    '<line x1="20" y1="140" x2="180" y2="140" stroke="#000" stroke-width="2"/>' +
+                    '<text x="100" y="155" text-anchor="middle" font-size="10">MARK</text>' +
+                    '<line x1="10" y1="80" x2="10" y2="140" stroke="#f44336" stroke-width="3"/>' +
+                    '<text x="5" y="110" font-size="14" fill="#f44336" font-weight="bold">H</text>' +
+                    '<circle cx="100" cy="50" r="20" fill="#ffd700" opacity="0.3"/>' +
+                    '<text x="100" y="45" text-anchor="middle" font-size="8">Dekor</text>' +
+                    '<text x="100" y="55" text-anchor="middle" font-size="7">(räknas EJ)</text>' +
+                    '</svg>' +
+                    '<p class="text-sm mb-2"><strong class="text-green-600">✓ Rätt:</strong> Mät till väggarnas överkant</p>' +
+                    '<p class="text-sm"><strong class="text-red-600">✗ Fel:</strong> Inkludera dekorationer på taket</p>',
                 
-                annexA: \`
-                    <h3 class="font-bold text-xl mb-3">📐 Annex A: Beräkning av fästpunkter</h3>
-                    <p class="text-sm mb-3">Varje sida beräknas <strong>separat</strong> enligt formeln:</p>
-                    
-                    <div class="bg-gray-100 p-4 rounded font-mono text-sm mb-3">
-                        <p class="mb-2">F = 0.5 × 1.5 × 1.24 × 11.1² × (längd × höjd)</p>
-                        <p>n = F ÷ 1,600 <span class="text-red-600 font-bold">(avrunda UPPÅT)</span></p>
-                    </div>
-                    
-                    <div class="bg-blue-50 p-3 rounded mb-3 text-sm">
-                        <p class="font-semibold mb-2">⚠️ Viktigt att komma ihåg:</p>
-                        <ul class="list-disc ml-5 space-y-1">
-                            <li>Höjd = <strong>väggarnas höjd</strong>, inte dekorationer</li>
-                            <li>Hörnfästpunkter räknas <strong>50%</strong> på varje sida</li>
-                            <li>Minimum <strong>6 fästpunkter</strong> totalt för hela borgen</li>
-                            <li>Vid decimal: avrunda alltid UPPÅT (1.1 → 2)</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3">
-                        <p class="text-sm font-semibold mb-2">💡 Exempel (7m × 3m vägg):</p>
-                        <p class="text-sm font-mono">F = 0.5 × 1.5 × 1.24 × 123.21 × 21</p>
-                        <p class="text-sm font-mono">F = 2,405 N</p>
-                        <p class="text-sm font-mono">n = 2,405 ÷ 1,600 = 1.5</p>
-                        <p class="text-sm font-mono mt-2">→ <strong class="text-green-600">2 fästpunkter</strong> krävs</p>
-                    </div>
-                \`,
+                annexA: '<h3 class="font-bold text-xl mb-3">📐 Annex A: Beräkning av fästpunkter</h3>' +
+                    '<p class="text-sm mb-3">Varje sida beräknas <strong>separat</strong> enligt formeln:</p>' +
+                    '<div class="bg-gray-100 p-4 rounded font-mono text-sm mb-3">' +
+                    '<p class="mb-2">F = 0.5 × 1.5 × 1.24 × 11.1² × (längd × höjd)</p>' +
+                    '<p>n = F ÷ 1,600 <span class="text-red-600 font-bold">(avrunda UPPÅT)</span></p>' +
+                    '</div>' +
+                    '<div class="bg-blue-50 p-3 rounded mb-3 text-sm">' +
+                    '<p class="font-semibold mb-2">⚠️ Viktigt:</p>' +
+                    '<ul class="list-disc ml-5 space-y-1">' +
+                    '<li>Höjd = <strong>väggarnas höjd</strong>, inte dekorationer</li>' +
+                    '<li>Hörnfästpunkter räknas <strong>50%</strong> på varje sida</li>' +
+                    '<li>Minimum <strong>6 fästpunkter</strong> totalt</li>' +
+                    '<li>Vid decimal: avrunda uppåt (1.1 → 2)</li>' +
+                    '</ul></div>',
                 
-                runout: \`
-                    <h3 class="font-bold text-lg mb-3">🛝 Run-out (utåkningssektion)</h3>
-                    <svg viewBox="0 0 300 200" class="w-full border-2 rounded bg-white mb-3">
-                        <line x1="50" y1="180" x2="280" y2="180" stroke="#000" stroke-width="2"/>
-                        <text x="150" y="195" text-anchor="middle" font-size="10">MARK</text>
-                        
-                        <path d="M 50 50 L 50 120 Q 50 150 80 160 L 200 175" fill="none" stroke="#2196f3" stroke-width="3"/>
-                        <circle cx="50" cy="50" r="4" fill="#f44336"/>
-                        <text x="25" y="50" font-size="10" fill="#f44336" font-weight="bold">Start</text>
-                        
-                        <line x1="200" y1="175" x2="270" y2="175" stroke="#4caf50" stroke-width="4"/>
-                        <text x="235" y="170" text-anchor="middle" font-size="11" fill="#4caf50" font-weight="bold">RUN-OUT</text>
-                        
-                        <line x1="50" y1="50" x2="50" y2="180" stroke="#f44336" stroke-width="1" stroke-dasharray="3,3"/>
-                        <text x="40" y="115" font-size="12" fill="#f44336" font-weight="bold">H</text>
-                        
-                        <line x1="200" y1="165" x2="270" y2="165" stroke="#4caf50" stroke-width="1"/>
-                        <line x1="200" y1="165" x2="200" y2="185" stroke="#4caf50" stroke-width="1"/>
-                        <line x1="270" y1="165" x2="270" y2="185" stroke="#4caf50" stroke-width="1"/>
-                    </svg>
-                    
-                    <div class="space-y-2 text-sm bg-blue-50 p-3 rounded">
-                        <p class="font-semibold">Krav enligt 4.2.11:</p>
-                        <ul class="list-disc ml-5">
-                            <li>Min längd: <strong>50% av slide-höjd</strong> ELLER <strong>300mm</strong> (det som är störst)</li>
-                            <li>Max lutning: <strong>10°</strong></li>
-                            <li>Med stoppvägg: lägg till <strong>+500mm</strong></li>
-                        </ul>
-                    </div>
-                \`,
+                runout: '<h3 class="font-bold text-lg mb-3">🛝 Run-out (utåkningssektion)</h3>' +
+                    '<div class="space-y-2 text-sm bg-blue-50 p-3 rounded">' +
+                    '<p class="font-semibold">Krav enligt 4.2.11:</p>' +
+                    '<ul class="list-disc ml-5">' +
+                    '<li>Min längd: <strong>50% av slide-höjd</strong> ELLER <strong>300mm</strong></li>' +
+                    '<li>Max lutning: <strong>10°</strong></li>' +
+                    '<li>Med stoppvägg: lägg till <strong>+500mm</strong></li>' +
+                    '</ul></div>',
                 
-                corners: \`
-                    <h3 class="font-bold mb-3">Nät i hörnen</h3>
-                    <svg viewBox="0 0 200 200" class="w-full border-2 rounded bg-white mb-3">
-                        <rect x="20" y="20" width="160" height="160" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>
-                        <circle cx="20" cy="20" r="15" fill="none" stroke="#f44336" stroke-width="3"/>
-                        <circle cx="180" cy="20" r="15" fill="none" stroke="#f44336" stroke-width="3"/>
-                        <circle cx="20" cy="180" r="15" fill="none" stroke="#f44336" stroke-width="3"/>
-                        <circle cx="180" cy="180" r="15" fill="none" stroke="#f44336" stroke-width="3"/>
-                        <line x1="20" y1="20" x2="60" y2="60" stroke="#4caf50" stroke-width="3"/>
-                        <line x1="180" y1="20" x2="140" y2="60" stroke="#4caf50" stroke-width="3"/>
-                        <text x="100" y="110" text-anchor="middle" font-weight="bold" font-size="12">NÄT MÅSTE NÅ</text>
-                        <text x="100" y="125" text-anchor="middle" font-weight="bold" font-size="12">ALLA HÖRN</text>
-                    </svg>
-                    <p class="text-sm">Röda cirklar = hörn som måste täckas helt av nätet</p>
-                \`
+                corners: '<h3 class="font-bold mb-3">Nät i hörnen</h3>' +
+                    '<svg viewBox="0 0 200 200" class="w-full border-2 rounded mb-3">' +
+                    '<rect x="20" y="20" width="160" height="160" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>' +
+                    '<circle cx="20" cy="20" r="15" fill="none" stroke="#f44336" stroke-width="3"/>' +
+                    '<circle cx="180" cy="20" r="15" fill="none" stroke="#f44336" stroke-width="3"/>' +
+                    '<circle cx="20" cy="180" r="15" fill="none" stroke="#f44336" stroke-width="3"/>' +
+                    '<circle cx="180" cy="180" r="15" fill="none" stroke="#f44336" stroke-width="3"/>' +
+                    '<line x1="20" y1="20" x2="60" y2="60" stroke="#4caf50" stroke-width="3"/>' +
+                    '<line x1="180" y1="20" x2="140" y2="60" stroke="#4caf50" stroke-width="3"/>' +
+                    '<text x="100" y="110" text-anchor="middle" font-weight="bold">NÄT MÅSTE NÅ HÖRNEN</text>' +
+                    '</svg>' +
+                    '<p class="text-sm">Röda cirklar = hörn som måste täckas helt</p>'
             };
             
             m.innerHTML = modals[type] || '';
@@ -371,41 +98,114 @@
             document.getElementById('modal').classList.add('hidden');
         }
 
-        // Kamera
+        function calc() {
+            const L = parseFloat(app.data.length) || 0;
+            const W = parseFloat(app.data.width) || 0;
+            const H = parseFloat(app.data.height) || 0;
+            if (!L || !W || !H) return null;
+
+            const calcSide = (area) => {
+                const F = 0.5 * 1.5 * 1.24 * 11.1 * 11.1 * area;
+                const n = F / 1600;
+                return Math.max(Math.ceil(n), 2);
+            };
+
+            const anchors = {
+                A: { name: 'Sida A', len: L, need: calcSide(L * H) },
+                B: { name: 'Sida B (Höger)', len: W, need: calcSide(W * H) },
+                C: { name: 'Sida C (Back)', len: L, need: calcSide(L * H) },
+                D: { name: 'Sida D (Vänster)', len: W, need: calcSide(W * H) }
+            };
+
+            const minAnchors = Math.max(6, Object.values(anchors).reduce((s, a) => s + a.need, 0));
+            const volume = L * W * H;
+            const blowersNeeded = Math.ceil(volume / 100);
+
+            const slideH = parseFloat(app.data.slideHeight) || 0;
+            const minRunout = Math.max(slideH * 0.5, 0.3);
+            const runoutRequired = minRunout + (app.data.hasStopWall ? 0.5 : 0);
+            
+            const platformH = parseFloat(app.data.platformHeight) || 0;
+            const minTreadDepth = platformH * 1.5;
+
+            return { anchors, minAnchors, L, W, blowersNeeded, runoutRequired, minRunout, minTreadDepth };
+        }
+
+        function validate() {
+            const c = calc();
+            if (!c) { alert('Fyll i längd, bredd och höjd'); return; }
+
+            const issues = [];
+
+            if (app.data.hasRopes === 'yes') issues.push({ severity: 'critical', cat: 'Säkerhet', msg: 'REP FÖRBJUDET!', ref: '4.1.4', action: 'Ta bort alla rep omedelbart' });
+            if (!app.data.productId) issues.push({ severity: 'critical', cat: 'Märkning', msg: 'Produkt-ID saknas', ref: '8', action: 'Märk borgen med unikt ID' });
+            if (app.data.idVisible === 'no') issues.push({ severity: 'critical', cat: 'Märkning', msg: 'ID ej synligt', ref: '8', action: 'Flytta ID så det syns' });
+
+            ['A', 'B', 'C', 'D'].forEach(side => {
+                const supplied = parseInt(app.data['anchor' + side]) || 0;
+                const req = c.anchors[side].need;
+                if (supplied > 0 && supplied < req) {
+                    issues.push({ severity: 'critical', cat: 'Förankring Sida ' + side, msg: supplied + ' st < ' + req + ' st', ref: 'Annex A', action: 'Lägg till ' + (req - supplied) + ' fästpunkter' });
+                }
+            });
+
+            const angle = parseInt(app.data.anchorAngle) || 0;
+            if (angle > 0 && (angle < 30 || angle > 45)) issues.push({ severity: 'serious', cat: 'Förankring', msg: 'Vinkel ' + angle + '° (ska vara 30-45°)', ref: '4.2.1', action: 'Justera vinkeln' });
+
+            if (app.data.hasSlide === 'yes') {
+                const runoutActual = parseFloat(app.data.runoutLength) || 0;
+                if (runoutActual > 0 && runoutActual < c.runoutRequired) {
+                    issues.push({ severity: 'critical', cat: 'Slide Run-out', msg: runoutActual + 'm < ' + c.runoutRequired.toFixed(2) + 'm', ref: '4.2.11', action: 'Förläng med ' + (c.runoutRequired - runoutActual).toFixed(2) + 'm' });
+                }
+            }
+
+            const tubeLen = parseFloat(app.data.blowerTubeLength) || 0;
+            if (tubeLen > 0 && tubeLen < 1.2) issues.push({ severity: 'serious', cat: 'Lufttryck', msg: 'Inblåsrör ' + tubeLen + 'm < 1.2m', ref: '4.2.4', action: 'Byt till längre rör' });
+
+            const treadDepth = parseFloat(app.data.entranceTreadDepth) || 0;
+            if (treadDepth > 0 && c.minTreadDepth > 0 && treadDepth < c.minTreadDepth) {
+                issues.push({ severity: 'serious', cat: 'Ingång', msg: 'Trappdjup ' + treadDepth + 'm < ' + c.minTreadDepth.toFixed(2) + 'm', ref: '4.2.3', action: 'Förläng trappdjupet' });
+            }
+
+            if (!app.data.hasSafetyInstructions) issues.push({ severity: 'warning', cat: 'Märkning', msg: 'Säkerhetsinstruktion saknas', ref: '6', action: 'Fäst instruktioner' });
+
+            if (app.data.hasNetting === 'yes') {
+                const mesh = parseFloat(app.data.nettingMesh) || 0;
+                if (mesh > 8) issues.push({ severity: 'serious', cat: 'Nät', msg: mesh + 'mm > 8mm', ref: '4.1.3', action: 'Byt nät' });
+                if (app.data.nettingCorners === 'no') issues.push({ severity: 'serious', cat: 'Nät', msg: 'Når ej hörn', ref: '4.2.9', action: 'Montera korrekt nät' });
+            }
+
+            const blowers = parseInt(app.data.blowersNeeded) || 0;
+            if (blowers > 0 && blowers < c.blowersNeeded) issues.push({ severity: 'serious', cat: 'Lufttryck', msg: blowers + ' < ' + c.blowersNeeded + ' fläktar', ref: '4.2.2', action: 'Lägg till fläktar' });
+
+            const critical = issues.filter(i => i.severity === 'critical');
+            const serious = issues.filter(i => i.severity === 'serious');
+            const warnings = issues.filter(i => i.severity === 'warning');
+
+            app.result = { calc: c, issues, critical, serious, warnings, ok: critical.length === 0 && serious.length === 0 };
+            localStorage.setItem('hoppborg', JSON.stringify(app));
+            render();
+        }
+
         async function startCamera() {
             try {
-                app.stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' } 
-                });
+                app.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 app.cameraActive = true;
                 render();
-                setTimeout(() => {
-                    const v = document.getElementById('cam');
-                    if (v) v.srcObject = app.stream;
-                }, 100);
-            } catch (e) {
-                alert('Kamera: ' + e.message);
-            }
+                setTimeout(() => { const v = document.getElementById('cam'); if (v) v.srcObject = app.stream; }, 100);
+            } catch (e) { alert('Kamera: ' + e.message); }
         }
 
         function stopCamera() {
-            if (app.stream) {
-                app.stream.getTracks().forEach(t => t.stop());
-                app.stream = null;
-            }
+            if (app.stream) { app.stream.getTracks().forEach(t => t.stop()); app.stream = null; }
             app.cameraActive = false;
             render();
         }
 
-        // Bilder
         function addImage(file) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                app.data.images.push({
-                    data: e.target.result,
-                    name: file.name,
-                    date: new Date().toISOString()
-                });
+                app.data.images.push({ data: e.target.result, name: file.name, date: new Date().toISOString() });
                 localStorage.setItem('hoppborg', JSON.stringify(app));
                 render();
             };
@@ -418,543 +218,225 @@
             render();
         }
 
-        // PDF Export
         async function exportPDF() {
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF('p', 'mm', 'a4');
             let y = 20;
 
-            pdf.setFontSize(20);
-            pdf.setTextColor(37, 99, 235);
+            pdf.setFontSize(20); pdf.setTextColor(37, 99, 235);
             pdf.text('Hoppborg Validator', 105, y, { align: 'center' });
             y += 10;
-            
-            pdf.setFontSize(10);
-            pdf.setTextColor(100);
+            pdf.setFontSize(10); pdf.setTextColor(100);
             pdf.text('EN 14960-1:2019', 105, y, { align: 'center' });
             y += 15;
 
-            pdf.setFontSize(14);
-            pdf.setTextColor(0);
+            pdf.setFontSize(14); pdf.setTextColor(0);
             pdf.text('Grunduppgifter', 20, y);
             y += 8;
-            
             pdf.setFontSize(10);
-            pdf.text(\`Längd: \${app.data.length} m | Bredd: \${app.data.width} m | Höjd: \${app.data.height} m\`, 20, y);
+            pdf.text('Längd: ' + app.data.length + ' m | Bredd: ' + app.data.width + ' m | Höjd: ' + app.data.height + ' m', 20, y);
             y += 6;
-            pdf.text(\`Produkt-ID: \${app.data.productId || 'Saknas'}\`, 20, y);
+            pdf.text('Produkt-ID: ' + (app.data.productId || 'Saknas'), 20, y);
             y += 10;
 
             if (app.result) {
                 pdf.setFontSize(16);
-                const statusColor = app.result.ok ? [34, 197, 94] : [220, 38, 38];
-                pdf.setTextColor(...statusColor);
-                pdf.text(app.result.ok ? '✓ GODKÄND' : '✗ UNDERKÄND', 20, y);
+                pdf.setTextColor(app.result.ok ? 34 : 220, app.result.ok ? 197 : 38, app.result.ok ? 94 : 38);
+                pdf.text(app.result.ok ? 'GODKÄND' : 'UNDERKÄND', 20, y);
                 y += 10;
 
                 if (app.result.issues.length > 0) {
-                    pdf.setFontSize(12);
-                    pdf.setTextColor(0);
+                    pdf.setFontSize(12); pdf.setTextColor(0);
                     pdf.text('Avvikelser:', 20, y);
                     y += 8;
                     pdf.setFontSize(10);
                     
                     app.result.issues.forEach(issue => {
-                        if (y > 270) {
-                            pdf.addPage();
-                            y = 20;
-                        }
-                        const color = issue.severity === 'critical' ? [220, 38, 38] : 
-                                     issue.severity === 'serious' ? [249, 115, 22] : [234, 179, 8];
-                        pdf.setTextColor(...color);
-                        pdf.text(\`• \${issue.cat}: \${issue.msg}\`, 25, y);
+                        if (y > 270) { pdf.addPage(); y = 20; }
+                        const color = issue.severity === 'critical' ? [220, 38, 38] : issue.severity === 'serious' ? [249, 115, 22] : [234, 179, 8];
+                        pdf.setTextColor(color[0], color[1], color[2]);
+                        pdf.text('• ' + issue.cat + ': ' + issue.msg, 25, y);
                         y += 5;
-                        pdf.setTextColor(100);
-                        pdf.setFontSize(8);
-                        pdf.text(\`  Ref: \${issue.ref}\`, 25, y);
+                        pdf.setTextColor(100); pdf.setFontSize(8);
+                        pdf.text('  Ref: ' + issue.ref, 25, y);
                         y += 4;
-                        pdf.text(\`  Åtgärd: \${issue.action}\`, 25, y);
+                        pdf.text('  Åtgärd: ' + issue.action, 25, y);
                         y += 7;
                         pdf.setFontSize(10);
                     });
                 }
             }
 
-            const timestamp = new Date().toLocaleString('sv-SE');
-            pdf.setFontSize(8);
-            pdf.setTextColor(150);
-            pdf.text(\`Genererad: \${timestamp}\`, 105, 287, { align: 'center' });
-
-            pdf.save(\`hoppborg-inspektion-\${new Date().toISOString().split('T')[0]}.pdf\`);
+            pdf.setFontSize(8); pdf.setTextColor(150);
+            pdf.text('Genererad: ' + new Date().toLocaleString('sv-SE'), 105, 287, { align: 'center' });
+            pdf.save('hoppborg-inspektion-' + new Date().toISOString().split('T')[0] + '.pdf');
         }
 
         function render() {
             const c = calc();
             const d = app.data;
             
-            document.getElementById('app').innerHTML = \`
-                <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg shadow-lg p-6 mb-6">
-                    <div class="text-sm opacity-90">EN 14960-1:2019</div>
-                    <h1 class="text-3xl font-bold">Hoppborg Validator</h1>
-                    <p class="text-sm mt-1 opacity-90">Baserad på Konsumentverkets marknadskontroll</p>
-                </div>
+            let html = '<div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg shadow-lg p-6 mb-6">';
+            html += '<div class="text-sm opacity-90">EN 14960-1:2019</div>';
+            html += '<h1 class="text-3xl font-bold">Hoppborg Validator</h1>';
+            html += '<p class="text-sm mt-1 opacity-90">Baserad på Konsumentverkets marknadskontroll</p></div>';
 
-                <!-- Grunduppgifter -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4">📏 Grunduppgifter</h2>
-                    <div class="grid grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">
-                                Längd (m) * 
-                                <button onclick="showInfo('height')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
-                            </label>
-                            <input type="number" step="0.1" id="length" value="\${d.length}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Kant till kant i längdriktning</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">
-                                Bredd (m) *
-                                <button onclick="showInfo('height')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
-                            </label>
-                            <input type="number" step="0.1" id="width" value="\${d.width}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Kant till kant i tvärriktning</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">
-                                Höjd (m) *
-                                <button onclick="showInfo('height')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
-                            </label>
-                            <input type="number" step="0.1" id="height" value="\${d.height}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Mark → vägg (EJ dekorationer!)</p>
-                        </div>
-                    </div>
-                </div>
+            html += '<div class="bg-white rounded-lg shadow-lg p-6 mb-6">';
+            html += '<h2 class="text-xl font-bold mb-4">📏 Grunduppgifter</h2>';
+            html += '<div class="grid grid-cols-3 gap-4 mb-6">';
+            html += '<div><label class="block text-sm font-medium mb-1">Längd (m) * <button onclick="showInfo(\'height\')" class="text-blue-600">ℹ️</button></label>';
+            html += '<input type="number" step="0.1" id="length" value="' + d.length + '" class="w-full p-2 border rounded"></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Bredd (m) *</label>';
+            html += '<input type="number" step="0.1" id="width" value="' + d.width + '" class="w-full p-2 border rounded"></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Höjd (m) * <button onclick="showInfo(\'height\')" class="text-blue-600">ℹ️</button></label>';
+            html += '<input type="number" step="0.1" id="height" value="' + d.height + '" class="w-full p-2 border rounded">';
+            html += '<p class="text-xs text-gray-500 mt-1">Mark → vägg (EJ dekorationer!)</p></div></div></div>';
 
-                <!-- Typ & konstruktion -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4">🏰 Typ och konstruktion</h2>
-                    <div class="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Typ *</label>
-                            <select id="type" class="w-full p-2 border rounded">
-                                <option value="">-- Välj typ --</option>
-                                <option value="flatbed" \${d.type==='flatbed'?'selected':''}>Flat-bed (4 öppna sidor)</option>
-                                <option value="castle" \${d.type==='castle'?'selected':''}>Castle (3 väggar, 1 öppen)</option>
-                                <option value="aframe" \${d.type==='aframe'?'selected':''}>A-Frame inflatable</option>
-                                <option value="combo" \${d.type==='combo'?'selected':''}>Bounce/Slide kombination</option>
-                                <option value="multiplay" \${d.type==='multiplay'?'selected':''}>Multi-Play Center</option>
-                                <option value="obstacle" \${d.type==='obstacle'?'selected':''}>Hinderbana</option>
-                                <option value="slide" \${d.type==='slide'?'selected':''}>Inflatable slide</option>
-                                <option value="enclosed" \${d.type==='enclosed'?'selected':''}>Enclosed inflatable</option>
-                                <option value="softmountain" \${d.type==='softmountain'?'selected':''}>Soft mountain</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Plattformshöjd (m)</label>
-                            <input type="number" step="0.1" id="platformHeight" value="\${d.platformHeight}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Från mark till lekyta (4.2.3)</p>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Vägghöjd (m)</label>
-                            <input type="number" step="0.1" id="wallHeight" value="\${d.wallHeight}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Från lekyta till väggtop (4.2.9)</p>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Har rutschbana?</label>
-                            <select id="hasSlide" class="w-full p-2 border rounded">
-                                <option value="">-- Välj --</option>
-                                <option value="yes" \${d.hasSlide==='yes'?'selected':''}>Ja</option>
-                                <option value="no" \${d.hasSlide==='no'?'selected':''}>Nej</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Finns rep?</label>
-                            <select id="hasRopes" class="w-full p-2 border rounded">
-                                <option value="">-- Välj --</option>
-                                <option value="no" \${d.hasRopes==='no'?'selected':''}>Nej</option>
-                                <option value="yes" \${d.hasRopes==='yes'?'selected':''}>Ja</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Har nät?</label>
-                            <select id="hasNetting" class="w-full p-2 border rounded">
-                                <option value="">-- Välj --</option>
-                                <option value="yes" \${d.hasNetting==='yes'?'selected':''}>Ja</option>
-                                <option value="no" \${d.hasNetting==='no'?'selected':''}>Nej</option>
-                            </select>
-                        </div>
-                        
-                        \${d.hasNetting === 'yes' ? \`
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Maskstorlek (mm)</label>
-                            <input type="number" id="nettingMesh" value="\${d.nettingMesh}" class="w-full p-2 border rounded" placeholder="Max 8">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">
-                                Når hörnen?
-                                <button onclick="showInfo('corners')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
-                            </label>
-                            <select id="nettingCorners" class="w-full p-2 border rounded">
-                                <option value="">-- Välj --</option>
-                                <option value="yes" \${d.nettingCorners==='yes'?'selected':''}>Ja</option>
-                                <option value="no" \${d.nettingCorners==='no'?'selected':''}>Nej</option>
-                            </select>
-                        </div>
-                        \` : ''}
-                    </div>
-                </div>
+            html += '<div class="bg-white rounded-lg shadow-lg p-6 mb-6"><h2 class="text-xl font-bold mb-4">🏰 Typ och konstruktion</h2><div class="grid grid-cols-2 gap-4 mb-4">';
+            
+            html += '<div><label class="block text-sm font-medium mb-1">Typ</label><select id="type" class="w-full p-2 border rounded"><option value="">-- Välj --</option>';
+            const types = [['flatbed','Flat-bed (4 öppna sidor)'],['castle','Castle (3 väggar, 1 öppen)'],['aframe','A-Frame inflatable'],['combo','Bounce/Slide kombination'],['multiplay','Multi-Play Center'],['obstacle','Hinderbana'],['slide','Inflatable slide'],['enclosed','Enclosed inflatable'],['softmountain','Soft mountain']];
+            types.forEach(t => { html += '<option value="' + t[0] + '"' + (d.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; });
+            html += '</select></div>';
 
-                <!-- Slide -->
-                \${d.hasSlide === 'yes' ? \`
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6 border-l-4 border-purple-500">
-                    <h2 class="text-xl font-bold mb-4">
-                        🛝 Rutschbana-specifika krav
-                        <button onclick="showInfo('runout')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
-                    </h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Slide plattformshöjd (m)</label>
-                            <input type="number" step="0.1" id="slideHeight" value="\${d.slideHeight}" class="w-full p-2 border rounded">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Run-out längd (m)</label>
-                            <input type="number" step="0.1" id="runoutLength" value="\${d.runoutLength}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Min 50% av höjd ELLER 0.3m</p>
-                        </div>
-                        <div class="col-span-2">
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="hasStopWall" \${d.hasStopWall?'checked':''} class="w-4 h-4">
-                                <span class="text-sm font-medium">Har stoppvägg (+500mm tillägg)</span>
-                            </label>
-                        </div>
-                    </div>
-                    \${c ? \`
-                    <div class="mt-4 p-3 bg-blue-50 border-l-4 border-blue-500 rounded">
-                        <p class="text-sm font-semibold">🧮 Beräknad run-out:</p>
-                        <p class="text-sm">Krav: <strong>\${c.runoutRequired.toFixed(2)} m</strong></p>
-                    </div>
-                    \` : ''}
-                </div>
-                \` : ''}
+            html += '<div><label class="block text-sm font-medium mb-1">Plattformshöjd (m)</label><input type="number" step="0.1" id="platformHeight" value="' + d.platformHeight + '" class="w-full p-2 border rounded"><p class="text-xs text-gray-500 mt-1">Från mark till lekyta (4.2.3)</p></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Vägghöjd (m)</label><input type="number" step="0.1" id="wallHeight" value="' + d.wallHeight + '" class="w-full p-2 border rounded"><p class="text-xs text-gray-500 mt-1">Från lekyta till väggtop (4.2.9)</p></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Har rutschbana?</label><select id="hasSlide" class="w-full p-2 border rounded"><option value="">-- Välj --</option><option value="yes"' + (d.hasSlide==='yes'?' selected':'') + '>Ja</option><option value="no"' + (d.hasSlide==='no'?' selected':'') + '>Nej</option></select></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Finns rep?</label><select id="hasRopes" class="w-full p-2 border rounded"><option value="">-- Välj --</option><option value="no"' + (d.hasRopes==='no'?' selected':'') + '>Nej</option><option value="yes"' + (d.hasRopes==='yes'?' selected':'') + '>Ja</option></select></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Har nät?</label><select id="hasNetting" class="w-full p-2 border rounded"><option value="">-- Välj --</option><option value="yes"' + (d.hasNetting==='yes'?' selected':'') + '>Ja</option><option value="no"' + (d.hasNetting==='no'?' selected':'') + '>Nej</option></select></div>';
 
-                <!-- Trappa/Ingång -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4">🚪 Ingång/Trappa (4.2.3)</h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Ingångshöjd (m)</label>
-                            <input type="number" step="0.1" id="entranceHeight" value="\${d.entranceHeight}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Max 0.63m (loaded), 0.6m (unloaded)</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Trappdjup (m)</label>
-                            <input type="number" step="0.1" id="entranceTreadDepth" value="\${d.entranceTreadDepth}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Min 1.5× plattformshöjd</p>
-                        </div>
-                    </div>
-                    \${c && c.minTreadDepth > 0 ? \`
-                    <div class="mt-3 p-2 bg-blue-50 rounded text-sm">
-                        Beräknat minsta trappdjup: <strong>\${c.minTreadDepth.toFixed(2)} m</strong>
-                    </div>
-                    \` : ''}
-                </div>
+            if (d.hasNetting === 'yes') {
+                html += '<div><label class="block text-sm font-medium mb-1">Maskstorlek (mm)</label><input type="number" id="nettingMesh" value="' + d.nettingMesh + '" class="w-full p-2 border rounded" placeholder="Max 8"></div>';
+                html += '<div><label class="block text-sm font-medium mb-1">Når hörnen? <button onclick="showInfo(\'corners\')" class="text-blue-600">ℹ️</button></label><select id="nettingCorners" class="w-full p-2 border rounded"><option value="">-- Välj --</option><option value="yes"' + (d.nettingCorners==='yes'?' selected':'') + '>Ja</option><option value="no"' + (d.nettingCorners==='no'?' selected':'') + '>Nej</option></select></div>';
+            }
+            html += '</div></div>';
 
-                <!-- Förankring -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                        ⚓ Förankring
-                        <button onclick="showInfo('annexA')" class="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200">
-                            📐 Annex A Förklaring
-                        </button>
-                    </h2>
+            if (d.hasSlide === 'yes') {
+                html += '<div class="bg-white rounded-lg shadow-lg p-6 mb-6 border-l-4 border-purple-500"><h2 class="text-xl font-bold mb-4">🛝 Rutschbana <button onclick="showInfo(\'runout\')" class="text-blue-600">ℹ️</button></h2><div class="grid grid-cols-2 gap-4">';
+                html += '<div><label class="block text-sm font-medium mb-1">Slide plattformshöjd (m)</label><input type="number" step="0.1" id="slideHeight" value="' + d.slideHeight + '" class="w-full p-2 border rounded"></div>';
+                html += '<div><label class="block text-sm font-medium mb-1">Run-out längd (m)</label><input type="number" step="0.1" id="runoutLength" value="' + d.runoutLength + '" class="w-full p-2 border rounded"><p class="text-xs text-gray-500 mt-1">Min 50% av höjd ELLER 0.3m</p></div>';
+                html += '<div class="col-span-2"><label class="flex items-center gap-2"><input type="checkbox" id="hasStopWall"' + (d.hasStopWall?' checked':'') + ' class="w-4 h-4"><span class="text-sm font-medium">Har stoppvägg (+500mm)</span></label></div>';
+                if (c && c.runoutRequired) html += '<div class="col-span-2 p-3 bg-blue-50 border-l-4 border-blue-500 rounded"><p class="text-sm font-semibold">🧮 Beräknad run-out:</p><p class="text-sm">Krav: <strong>' + c.runoutRequired.toFixed(2) + ' m</strong></p></div>';
+                html += '</div></div>';
+            }
 
-                    \${c && c.L && c.W ? \`
-                    <div class="mb-4 p-4 bg-blue-50 rounded">
-                        <div class="text-center font-semibold mb-2">Översikt fästpunkter</div>
-                        <svg viewBox="0 0 \${c.L * 40} \${c.W * 40}" class="w-full max-w-md mx-auto border-2 border-blue-500 bg-white rounded">
-                            <rect x="0" y="0" width="\${c.L * 40}" height="\${c.W * 40}" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
-                            <text x="\${c.L * 20}" y="20" text-anchor="middle" font-weight="bold" fill="#1e40af">Sida A</text>
-                            <text x="\${c.L * 40 - 10}" y="\${c.W * 20}" text-anchor="end" font-weight="bold" fill="#1e40af" transform="rotate(-90 \${c.L * 40 - 10} \${c.W * 20})">B</text>
-                            <text x="\${c.L * 20}" y="\${c.W * 40 - 5}" text-anchor="middle" font-weight="bold" fill="#1e40af">Sida C</text>
-                            <text x="10" y="\${c.W * 20}" font-weight="bold" fill="#1e40af" transform="rotate(-90 10 \${c.W * 20})">D</text>
-                        </svg>
-                    </div>
-                    \` : ''}
+            html += '<div class="bg-white rounded-lg shadow-lg p-6 mb-6"><h2 class="text-xl font-bold mb-4">🚪 Ingång/Trappa (4.2.3)</h2><div class="grid grid-cols-2 gap-4">';
+            html += '<div><label class="block text-sm font-medium mb-1">Ingångshöjd (m)</label><input type="number" step="0.1" id="entranceHeight" value="' + d.entranceHeight + '" class="w-full p-2 border rounded"><p class="text-xs text-gray-500 mt-1">Max 0.63m</p></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Trappdjup (m)</label><input type="number" step="0.1" id="entranceTreadDepth" value="' + d.entranceTreadDepth + '" class="w-full p-2 border rounded"><p class="text-xs text-gray-500 mt-1">Min 1.5× plattformshöjd</p></div>';
+            if (c && c.minTreadDepth > 0) html += '<div class="col-span-2 p-2 bg-blue-50 rounded text-sm">Beräknat minsta trappdjup: <strong>' + c.minTreadDepth.toFixed(2) + ' m</strong></div>';
+            html += '</div></div>';
 
-                    <div class="grid grid-cols-2 gap-4 mb-4">
-                        \${c ? ['A', 'B', 'C', 'D'].map(s => \`
-                        <div>
-                            <label class="block text-sm font-medium mb-1">
-                                Sida \${s}: Fästpunkter
-                                <span class="text-xs text-gray-500">(Krav: \${c.anchors[s].need} st)</span>
-                            </label>
-                            <input type="number" id="anchor\${s}" value="\${d['anchor'+s]}" class="w-full p-2 border rounded">
-                        </div>
-                        \`).join('') : ''}
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Förankringsvinkel (°)</label>
-                            <input type="number" id="anchorAngle" value="\${d.anchorAngle}" class="w-full p-2 border rounded" placeholder="30-45">
-                        </div>
-                    </div>
+            html += '<div class="bg-white rounded-lg shadow-lg p-6 mb-6"><h2 class="text-xl font-bold mb-4">⚓ Förankring <button onclick="showInfo(\'annexA\')" class="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded">📐 Annex A</button></h2>';
+            
+            if (c && c.L && c.W) {
+                html += '<div class="mb-4 p-4 bg-blue-50 rounded"><div class="text-center font-semibold mb-2">Översikt fästpunkter</div>';
+                html += '<svg viewBox="0 0 ' + (c.L * 40) + ' ' + (c.W * 40) + '" class="w-full max-w-md mx-auto border-2 border-blue-500 bg-white rounded">';
+                html += '<rect x="0" y="0" width="' + (c.L * 40) + '" height="' + (c.W * 40) + '" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>';
+                html += '<text x="' + (c.L * 20) + '" y="20" text-anchor="middle" font-weight="bold" fill="#1e40af">Sida A</text>';
+                html += '<text x="' + (c.L * 40 - 10) + '" y="' + (c.W * 20) + '" text-anchor="end" font-weight="bold" fill="#1e40af" transform="rotate(-90 ' + (c.L * 40 - 10) + ' ' + (c.W * 20) + ')">B</text>';
+                html += '<text x="' + (c.L * 20) + '" y="' + (c.W * 40 - 5) + '" text-anchor="middle" font-weight="bold" fill="#1e40af">Sida C</text>';
+                html += '<text x="10" y="' + (c.W * 20) + '" font-weight="bold" fill="#1e40af" transform="rotate(-90 10 ' + (c.W * 20) + ')">D</text>';
+                html += '</svg></div>';
+            }
 
-                    <button onclick="app.cameraActive ? stopCamera() : startCamera()" 
-                        class="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-medium mb-4 \${
-                            app.cameraActive ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
-                        }">
-                        📷 \${app.cameraActive ? 'Stäng kamera' : 'Öppna kamera för vinkelmätning'}
-                    </button>
+            html += '<div class="grid grid-cols-2 gap-4 mb-4">';
+            if (c) ['A','B','C','D'].forEach(s => { html += '<div><label class="block text-sm font-medium mb-1">Sida ' + s + ': Fästpunkter <span class="text-xs text-gray-500">(Krav: ' + c.anchors[s].need + ' st)</span></label><input type="number" id="anchor' + s + '" value="' + d['anchor' + s] + '" class="w-full p-2 border rounded"></div>'; });
+            html += '<div><label class="block text-sm font-medium mb-1">Förankringsvinkel (°)</label><input type="number" id="anchorAngle" value="' + d.anchorAngle + '" class="w-full p-2 border rounded" placeholder="30-45"></div></div>';
 
-                    \${app.cameraActive ? \`
-                    <div class="mb-6 relative bg-black rounded-lg overflow-hidden">
-                        <video id="cam" autoplay playsinline class="w-full"></video>
-                        <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                            <line x1="0" y1="80" x2="100" y2="80" stroke="#22c55e" stroke-width="0.5" stroke-dasharray="2,2"/>
-                            <line x1="50" y1="80" x2="85" y2="60" stroke="#fbbf24" stroke-width="0.8"/>
-                            <text x="70" y="58" fill="#fbbf24" font-size="4" font-weight="bold">30°</text>
-                            <line x1="50" y1="80" x2="80" y2="50" stroke="#ef4444" stroke-width="0.8"/>
-                            <text x="65" y="48" fill="#ef4444" font-size="4" font-weight="bold">45°</text>
-                            <path d="M 50 80 L 85 60 L 80 50 Z" fill="#22c55e" opacity="0.2"/>
-                            <circle cx="50" cy="80" r="2" fill="#22c55e"/>
-                        </svg>
-                    </div>
-                    \` : ''}
-                </div>
+            html += '<button onclick="' + (app.cameraActive ? 'stopCamera()' : 'startCamera()') + '" class="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-medium mb-4 ' + (app.cameraActive ? 'bg-red-600' : 'bg-green-600') + ' text-white">📷 ' + (app.cameraActive ? 'Stäng kamera' : 'Öppna kamera för vinkelmätning') + '</button>';
 
-                <!-- Lufttryck -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4">💨 Lufttryck & Fläktar</h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Antal fläktar</label>
-                            <input type="number" id="blowersNeeded" value="\${d.blowersNeeded}" class="w-full p-2 border rounded">
-                            \${c ? \`<p class="text-xs text-gray-500 mt-1">Beräknat: \${c.blowersNeeded} st</p>\` : ''}
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Fläkteffekt (W)</label>
-                            <input type="number" id="blowerPower" value="\${d.blowerPower}" class="w-full p-2 border rounded" placeholder="1500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Inblåsrörets längd (m)</label>
-                            <input type="number" step="0.1" id="blowerTubeLength" value="\${d.blowerTubeLength}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Min 1.2m från vägg, 2.5m från öppen (4.2.4)</p>
-                        </div>
-                    </div>
-                </div>
+            if (app.cameraActive) {
+                html += '<div class="mb-6 relative bg-black rounded-lg overflow-hidden"><video id="cam" autoplay playsinline class="w-full"></video>';
+                html += '<svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">';
+                html += '<line x1="0" y1="80" x2="100" y2="80" stroke="#22c55e" stroke-width="0.5" stroke-dasharray="2,2"/>';
+                html += '<line x1="50" y1="80" x2="85" y2="60" stroke="#fbbf24" stroke-width="0.8"/><text x="70" y="58" fill="#fbbf24" font-size="4" font-weight="bold">30°</text>';
+                html += '<line x1="50" y1="80" x2="80" y2="50" stroke="#ef4444" stroke-width="0.8"/><text x="65" y="48" fill="#ef4444" font-size="4" font-weight="bold">45°</text>';
+                html += '<path d="M 50 80 L 85 60 L 80 50 Z" fill="#22c55e" opacity="0.2"/><circle cx="50" cy="80" r="2" fill="#22c55e"/></svg></div>';
+            }
+            html += '</div>';
 
-                <!-- Märkning -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4">🏷️ Märkning & Tillverkarkrav</h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Produkt-ID *</label>
-                            <input type="text" id="productId" value="\${d.productId}" class="w-full p-2 border rounded">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">ID synligt?</label>
-                            <select id="idVisible" class="w-full p-2 border rounded">
-                                <option value="">-- Välj --</option>
-                                <option value="yes" \${d.idVisible==='yes'?'selected':''}>Ja</option>
-                                <option value="no" \${d.idVisible==='no'?'selected':''}>Nej</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Tillverkarens max användare</label>
-                            <input type="number" id="manufacturerMaxUsers" value="\${d.manufacturerMaxUsers}" class="w-full p-2 border rounded">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Tillverkarens max användarlängd (m)</label>
-                            <input type="number" step="0.1" id="manufacturerUserHeight" value="\${d.manufacturerUserHeight}" class="w-full p-2 border rounded">
-                        </div>
-                        <div class="col-span-2">
-                            <label class="flex items-center gap-2">
-                                <input type="checkbox" id="hasSafetyInstructions" \${d.hasSafetyInstructions?'checked':''} class="w-4 h-4">
-                                <span class="text-sm font-medium">Finns säkerhetsinstruktion angiven</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
+            html += '<div class="bg-white rounded-lg shadow-lg p-6 mb-6"><h2 class="text-xl font-bold mb-4">💨 Lufttryck & Fläktar</h2><div class="grid grid-cols-2 gap-4">';
+            html += '<div><label class="block text-sm font-medium mb-1">Antal fläktar</label><input type="number" id="blowersNeeded" value="' + d.blowersNeeded + '" class="w-full p-2 border rounded">';
+            if (c) html += '<p class="text-xs text-gray-500 mt-1">Beräknat: ' + c.blowersNeeded + ' st</p>';
+            html += '</div><div><label class="block text-sm font-medium mb-1">Fläkteffekt (W)</label><input type="number" id="blowerPower" value="' + d.blowerPower + '" class="w-full p-2 border rounded" placeholder="1500"></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Inblåsrörets längd (m)</label><input type="number" step="0.1" id="blowerTubeLength" value="' + d.blowerTubeLength + '" class="w-full p-2 border rounded"><p class="text-xs text-gray-500 mt-1">Min 1.2m från vägg, 2.5m från öppen (4.2.4)</p></div></div></div>';
 
-                <!-- Bilder -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4">📸 Bilder från inspektion</h2>
-                    <label class="block w-full cursor-pointer bg-orange-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-orange-700 text-center mb-4">
-                        📸 Lägg till bild
-                        <input type="file" id="imageInput" accept="image/*" capture="environment" class="hidden">
-                    </label>
-                    
-                    \${d.images.length > 0 ? \`
-                    <div class="grid grid-cols-2 gap-4">
-                        \${d.images.map((img, i) => \`
-                            <div class="relative border rounded-lg overflow-hidden">
-                                <img src="\${img.data}" class="w-full h-32 object-cover">
-                                <button onclick="removeImage(\${i})" class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-lg">×</button>
-                                <div class="p-2 bg-gray-50 text-xs truncate">\${img.name}</div>
-                            </div>
-                        \`).join('')}
-                    </div>
-                    \` : ''}
-                </div>
+            html += '<div class="bg-white rounded-lg shadow-lg p-6 mb-6"><h2 class="text-xl font-bold mb-4">🏷️ Märkning & Tillverkarkrav</h2><div class="grid grid-cols-2 gap-4">';
+            html += '<div><label class="block text-sm font-medium mb-1">Produkt-ID *</label><input type="text" id="productId" value="' + d.productId + '" class="w-full p-2 border rounded"></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">ID synligt?</label><select id="idVisible" class="w-full p-2 border rounded"><option value="">-- Välj --</option><option value="yes"' + (d.idVisible==='yes'?' selected':'') + '>Ja</option><option value="no"' + (d.idVisible==='no'?' selected':'') + '>Nej</option></select></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Tillverkarens max användare</label><input type="number" id="manufacturerMaxUsers" value="' + d.manufacturerMaxUsers + '" class="w-full p-2 border rounded"></div>';
+            html += '<div><label class="block text-sm font-medium mb-1">Tillverkarens max användarlängd (m)</label><input type="number" step="0.1" id="manufacturerUserHeight" value="' + d.manufacturerUserHeight + '" class="w-full p-2 border rounded"></div>';
+            html += '<div class="col-span-2"><label class="flex items-center gap-2"><input type="checkbox" id="hasSafetyInstructions"' + (d.hasSafetyInstructions?' checked':'') + ' class="w-4 h-4"><span class="text-sm font-medium">Finns säkerhetsinstruktion angiven</span></label></div></div></div>';
 
-                <button onclick="validate()" class="w-full bg-blue-600 text-white py-4 rounded-lg text-lg font-bold hover:bg-blue-700 mb-6">
-                    ✓ VALIDERA HOPPBORG
-                </button>
+            html += '<div class="bg-white rounded-lg shadow-lg p-6 mb-6"><h2 class="text-xl font-bold mb-4">📸 Bilder från inspektion</h2>';
+            html += '<label class="block w-full cursor-pointer bg-orange-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-orange-700 text-center mb-4">📸 Lägg till bild<input type="file" id="imageInput" accept="image/*" capture="environment" class="hidden"></label>';
+            
+            if (d.images.length > 0) {
+                html += '<div class="grid grid-cols-2 gap-4">';
+                d.images.forEach((img, i) => {
+                    html += '<div class="relative border rounded-lg overflow-hidden"><img src="' + img.data + '" class="w-full h-32 object-cover">';
+                    html += '<button onclick="removeImage(' + i + ')" class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6">×</button>';
+                    html += '<div class="p-2 bg-gray-50 text-xs truncate">' + img.name + '</div></div>';
+                });
+                html += '</div>';
+            }
+            html += '</div>';
 
-                <!-- Resultat -->
-                \${app.result ? \`
-                <div class="space-y-6">
-                    <div class="rounded-lg shadow-lg p-6 border-l-8 \${
-                        app.result.ok ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'
-                    }">
-                        <h3 class="text-2xl font-bold">\${app.result.ok ? '✓ GODKÄND' : '✗ UNDERKÄND'}</h3>
-                        <p>\${app.result.issues.length} avvikelser totalt</p>
-                    </div>
+            html += '<button onclick="validate()" class="w-full bg-blue-600 text-white py-4 rounded-lg text-lg font-bold hover:bg-blue-700 mb-6">✓ VALIDERA HOPPBORG</button>';
 
-                    <!-- Sammanfattning -->
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-xl font-bold mb-4">📊 Sammanfattning</h3>
-                        <div class="grid grid-cols-4 gap-4 mb-6">
-                            <div class="bg-gray-50 p-4 rounded text-center">
-                                <div class="text-3xl font-bold text-gray-600">\${app.result.issues.length}</div>
-                                <div class="text-sm">Totalt</div>
-                            </div>
-                            <div class="bg-red-50 p-4 rounded text-center">
-                                <div class="text-3xl font-bold text-red-600">\${app.result.critical.length}</div>
-                                <div class="text-sm">Kritiska</div>
-                            </div>
-                            <div class="bg-orange-50 p-4 rounded text-center">
-                                <div class="text-3xl font-bold text-orange-600">\${app.result.serious.length}</div>
-                                <div class="text-sm">Allvarliga</div>
-                            </div>
-                            <div class="bg-yellow-50 p-4 rounded text-center">
-                                <div class="text-3xl font-bold text-yellow-600">\${app.result.warnings.length}</div>
-                                <div class="text-sm">Varningar</div>
-                            </div>
-                        </div>
+            if (app.result) {
+                html += '<div class="space-y-6"><div class="rounded-lg shadow-lg p-6 border-l-8 ' + (app.result.ok ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500') + '"><h3 class="text-2xl font-bold">' + (app.result.ok ? '✓ GODKÄND' : '✗ UNDERKÄND') + '</h3><p>' + app.result.issues.length + ' avvikelser totalt</p></div>';
 
-                        <!-- Krav vs Uppmätt -->
-                        <h4 class="font-bold mb-3">Krav vs Uppmätta värden</h4>
-                        <div class="overflow-x-auto mb-6">
-                            <table class="w-full text-sm border-collapse">
-                                <thead class="bg-gray-100">
-                                    <tr>
-                                        <th class="p-2 text-left border">Parameter</th>
-                                        <th class="p-2 text-left border">Krav</th>
-                                        <th class="p-2 text-left border">Uppmätt</th>
-                                        <th class="p-2 text-center border">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    \${['A', 'B', 'C', 'D'].map(s => {
-                                        const req = c.anchors[s].need;
-                                        const supplied = parseInt(d['anchor'+s]) || 0;
-                                        const ok = supplied >= req;
-                                        return \`
-                                        <tr class="\${ok ? '' : 'bg-red-50'}">
-                                            <td class="p-2 border">Fästpunkter Sida \${s}</td>
-                                            <td class="p-2 border">\${req} st</td>
-                                            <td class="p-2 border">\${supplied} st</td>
-                                            <td class="p-2 text-center border">
-                                                <span class="\${ok ? 'text-green-600' : 'text-red-600'}">\${ok ? '✓' : '✗'}</span>
-                                            </td>
-                                        </tr>
-                                        \`;
-                                    }).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                html += '<div class="bg-white rounded-lg shadow-lg p-6"><h3 class="text-xl font-bold mb-4">📊 Sammanfattning</h3><div class="grid grid-cols-4 gap-4 mb-6">';
+                html += '<div class="bg-gray-50 p-4 rounded text-center"><div class="text-3xl font-bold text-gray-600">' + app.result.issues.length + '</div><div class="text-sm">Totalt</div></div>';
+                html += '<div class="bg-red-50 p-4 rounded text-center"><div class="text-3xl font-bold text-red-600">' + app.result.critical.length + '</div><div class="text-sm">Kritiska</div></div>';
+                html += '<div class="bg-orange-50 p-4 rounded text-center"><div class="text-3xl font-bold text-orange-600">' + app.result.serious.length + '</div><div class="text-sm">Allvarliga</div></div>';
+                html += '<div class="bg-yellow-50 p-4 rounded text-center"><div class="text-3xl font-bold text-yellow-600">' + app.result.warnings.length + '</div><div class="text-sm">Varningar</div></div></div>';
 
-                        <!-- Kritiska fel -->
-                        \${app.result.critical.length > 0 ? \`
-                        <h4 class="font-bold text-red-900 mb-3">Kritiska fel</h4>
-                        <div class="space-y-3 mb-6">
-                            \${app.result.critical.map(i => \`
-                                <div class="border-l-4 border-red-500 bg-red-50 p-4 rounded">
-                                    <div class="font-semibold">\${i.cat}</div>
-                                    <div class="text-sm">\${i.msg}</div>
-                                    <div class="text-xs text-gray-600 mt-1">Ref: \${i.ref}</div>
-                                    <div class="text-xs text-red-800 mt-2"><strong>Åtgärd:</strong> \${i.action}</div>
-                                </div>
-                            \`).join('')}
-                        </div>
-                        \` : ''}
+                html += '<h4 class="font-bold mb-3">Krav vs Uppmätta värden</h4><div class="overflow-x-auto mb-6"><table class="w-full text-sm border-collapse"><thead class="bg-gray-100"><tr><th class="p-2 text-left border">Parameter</th><th class="p-2 text-left border">Krav</th><th class="p-2 text-left border">Uppmätt</th><th class="p-2 text-center border">Status</th></tr></thead><tbody>';
+                ['A','B','C','D'].forEach(s => {
+                    const req = c.anchors[s].need;
+                    const supplied = parseInt(d['anchor' + s]) || 0;
+                    const ok = supplied >= req;
+                    html += '<tr class="' + (ok ? '' : 'bg-red-50') + '"><td class="p-2 border">Fästpunkter Sida ' + s + '</td><td class="p-2 border">' + req + ' st</td><td class="p-2 border">' + supplied + ' st</td><td class="p-2 text-center border"><span class="' + (ok ? 'text-green-600' : 'text-red-600') + '">' + (ok ? '✓' : '✗') + '</span></td></tr>';
+                });
+                html += '</tbody></table></div>';
 
-                        <!-- Allvarliga fel -->
-                        \${app.result.serious.length > 0 ? \`
-                        <h4 class="font-bold text-orange-900 mb-3">Allvarliga fel</h4>
-                        <div class="space-y-3 mb-6">
-                            \${app.result.serious.map(i => \`
-                                <div class="border-l-4 border-orange-500 bg-orange-50 p-4 rounded">
-                                    <div class="font-semibold">\${i.cat}</div>
-                                    <div class="text-sm">\${i.msg}</div>
-                                    <div class="text-xs text-gray-600 mt-1">Ref: \${i.ref}</div>
-                                    <div class="text-xs text-orange-800 mt-2"><strong>Åtgärd:</strong> \${i.action}</div>
-                                </div>
-                            \`).join('')}
-                        </div>
-                        \` : ''}
+                ['critical','serious','warnings'].forEach(severity => {
+                    const items = app.result[severity];
+                    if (items.length > 0) {
+                        const labels = { critical: 'Kritiska fel', serious: 'Allvarliga fel', warnings: 'Varningar' };
+                        const colors = { critical: 'red', serious: 'orange', warnings: 'yellow' };
+                        const color = colors[severity];
+                        html += '<h4 class="font-bold text-' + color + '-900 mb-3">' + labels[severity] + '</h4><div class="space-y-3 mb-6">';
+                        items.forEach(i => {
+                            html += '<div class="border-l-4 border-' + color + '-500 bg-' + color + '-50 p-4 rounded"><div class="font-semibold">' + i.cat + '</div><div class="text-sm">' + i.msg + '</div><div class="text-xs text-gray-600 mt-1">Ref: ' + i.ref + '</div><div class="text-xs text-' + color + '-800 mt-2"><strong>Åtgärd:</strong> ' + i.action + '</div></div>';
+                        });
+                        html += '</div>';
+                    }
+                });
 
-                        <!-- Varningar -->
-                        \${app.result.warnings.length > 0 ? \`
-                        <h4 class="font-bold text-yellow-900 mb-3">Varningar</h4>
-                        <div class="space-y-3 mb-6">
-                            \${app.result.warnings.map(i => \`
-                                <div class="border-l-4 border-yellow-500 bg-yellow-50 p-4 rounded">
-                                    <div class="font-semibold">\${i.cat}</div>
-                                    <div class="text-sm">\${i.msg}</div>
-                                    <div class="text-xs text-gray-600 mt-1">Ref: \${i.ref}</div>
-                                    <div class="text-xs text-yellow-800 mt-2"><strong>Åtgärd:</strong> \${i.action}</div>
-                                </div>
-                            \`).join('')}
-                        </div>
-                        \` : ''}
-                    </div>
+                html += '</div><div class="flex gap-3"><button onclick="exportPDF()" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700">📄 Spara som PDF</button><button onclick="app.result=null; render()" class="flex-1 bg-gray-600 text-white py-3 rounded-lg font-medium hover:bg-gray-700">🔄 Ny validering</button></div></div>';
+            }
 
-                    <div class="flex gap-3">
-                        <button onclick="exportPDF()" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700">
-                            📄 Spara som PDF
-                        </button>
-                        <button onclick="app.result=null; render()" class="flex-1 bg-gray-600 text-white py-3 rounded-lg font-medium hover:bg-gray-700">
-                            🔄 Ny validering
-                        </button>
-                    </div>
-                </div>
-                \` : ''}
-            \`;
+            document.getElementById('app').innerHTML = html;
 
-            // Event listeners
-            ['length','width','height','type','platformHeight','wallHeight','hasSlide','slideHeight',
-             'runoutLength','entranceHeight','entranceTreadDepth','anchorA','anchorB','anchorC','anchorD',
-             'anchorAngle','blowersNeeded','blowerPower','blowerTubeLength','productId','idVisible',
-             'manufacturerMaxUsers','manufacturerUserHeight','hasRopes','hasNetting','nettingMesh','nettingCorners'].forEach(f => {
+            ['length','width','height','type','platformHeight','wallHeight','hasSlide','slideHeight','runoutLength','entranceHeight','entranceTreadDepth','blowerTubeLength','anchorA','anchorB','anchorC','anchorD','anchorAngle','blowersNeeded','blowerPower','productId','idVisible','manufacturerMaxUsers','manufacturerUserHeight','hasRopes','hasNetting','nettingMesh','nettingCorners'].forEach(f => {
                 const el = document.getElementById(f);
                 if (el) el.addEventListener('change', e => { app.data[f] = e.target.value; render(); });
             });
 
-            ['hasSafetyInstructions', 'hasStopWall'].forEach(f => {
+            ['hasSafetyInstructions','hasStopWall'].forEach(f => {
                 const el = document.getElementById(f);
                 if (el) el.addEventListener('change', e => { app.data[f] = e.target.checked; render(); });
             });
 
             const imgInput = document.getElementById('imageInput');
-            if (imgInput) {
-                imgInput.addEventListener('change', (e) => {
-                    const file = e.target.files[0];
-                    if (file) addImage(file);
-                });
-            }
+            if (imgInput) imgInput.addEventListener('change', (e) => { if (e.target.files[0]) addImage(e.target.files[0]); });
         }
 
-        // Initial render
         const saved = localStorage.getItem('hoppborg');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            app.data = parsed.data || app.data;
-        }
+        if (saved) { try { const parsed = JSON.parse(saved); app.data = parsed.data || app.data; } catch (e) {} }
         render();
     </script>
 </body>
