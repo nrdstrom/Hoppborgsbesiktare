@@ -19,9 +19,14 @@
 
     <script>
         const app = {
+            lang: 'sv', // 'sv' eller 'en'
             data: {
                 // Grunduppgifter
                 length: '', width: '', height: '', type: '',
+                
+                // Höjder per sida (för Annex A)
+                heightA: '', heightB: '', heightC: '', heightD: '',
+                useIndividualHeights: false,
                 
                 // Konstruktion
                 platformHeight: '', wallHeight: '',
@@ -70,11 +75,17 @@
                 return Math.max(Math.ceil(n), 2);
             };
 
+            // Använd individuella höjder om aktiverat, annars generell höjd
+            const hA = app.data.useIndividualHeights ? (parseFloat(app.data.heightA) || H) : H;
+            const hB = app.data.useIndividualHeights ? (parseFloat(app.data.heightB) || H) : H;
+            const hC = app.data.useIndividualHeights ? (parseFloat(app.data.heightC) || H) : H;
+            const hD = app.data.useIndividualHeights ? (parseFloat(app.data.heightD) || H) : H;
+
             const anchors = {
-                A: { name: 'Sida A (Fram)', len: L, need: calcSide(L, H) },
-                B: { name: 'Sida B (Höger)', len: W, need: calcSide(W, H) },
-                C: { name: 'Sida C (Bak)', len: L, need: calcSide(L, H) },
-                D: { name: 'Sida D (Vänster)', len: W, need: calcSide(W, H) }
+                A: { name: 'Sida A (Fram)', len: L, height: hA, need: calcSide(L, hA) },
+                B: { name: 'Sida B (Höger)', len: W, height: hB, need: calcSide(W, hB) },
+                C: { name: 'Sida C (Bak)', len: L, height: hC, need: calcSide(L, hC) },
+                D: { name: 'Sida D (Vänster)', len: W, height: hD, need: calcSide(W, hD) }
             };
 
             const totalAnchors = Object.values(anchors).reduce((s, a) => s + a.need, 0);
@@ -273,23 +284,128 @@
             render();
         }
 
+        // Översättningar
+        const t = {
+            sv: {
+                title: 'Hoppborg Validator',
+                subtitle: 'Baserad på Konsumentverkets marknadskontroll',
+                validate: '✓ VALIDERA HOPPBORG',
+                approved: '✓ GODKÄND',
+                failed: '✗ UNDERKÄND',
+                // ... fler översättningar läggs till vid behov
+            },
+            en: {
+                title: 'Bouncy Castle Validator',
+                subtitle: 'Based on Swedish Consumer Agency market surveillance',
+                validate: '✓ VALIDATE BOUNCY CASTLE',
+                approved: '✓ APPROVED',
+                failed: '✗ FAILED',
+                // ... fler översättningar läggs till vid behov
+            }
+        };
+
+        function tr(key) {
+            return t[app.lang][key] || key;
+        }
+
+        function toggleLang() {
+            app.lang = app.lang === 'sv' ? 'en' : 'sv';
+            render();
+        }
+
         // Modal functions
         function showInfo(type) {
             const m = document.getElementById('modalContent');
             
             const modals = {
-                height: `
-                    <h3 class="font-bold text-lg mb-3">📏 Hur mäter man höjd?</h3>
+                length: `
+                    <h3 class="font-bold text-lg mb-3">📏 ${app.lang === 'sv' ? 'Hur mäter man längd?' : 'How to measure length?'}</h3>
                     
                     <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
-                        <p class="font-semibold mb-2">⚠️ VIKTIGT: Höjd = väggarnas höjd</p>
-                        <p class="text-sm">Mät från marken till där väggarna slutar - INTE till dekorationer på taket!</p>
+                        <p class="font-semibold mb-2">${app.lang === 'sv' ? '⚠️ VIKTIGT: Längd = horisontellt mått' : '⚠️ IMPORTANT: Length = horizontal measurement'}</p>
+                        <p class="text-sm">${app.lang === 'sv' ? 'Mät från kant till kant i längdriktningen på marken när hoppborgen är uppblåst.' : 'Measure from edge to edge along the length on the ground when inflated.'}</p>
+                    </div>
+                    
+                    <svg viewBox="0 0 300 150" class="w-full max-w-md border-2 rounded bg-white mb-3 mx-auto">
+                        <!-- Hoppborg ovanifrån -->
+                        <rect x="50" y="30" width="200" height="90" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>
+                        
+                        <!-- Längdmätning -->
+                        <line x1="50" y1="15" x2="250" y2="15" stroke="#f44336" stroke-width="3"/>
+                        <line x1="50" y1="10" x2="50" y2="20" stroke="#f44336" stroke-width="2"/>
+                        <line x1="250" y1="10" x2="250" y2="20" stroke="#f44336" stroke-width="2"/>
+                        <text x="150" y="12" text-anchor="middle" font-size="12" fill="#f44336" font-weight="bold">LÄNGD / LENGTH</text>
+                        
+                        <!-- Fästpunkter -->
+                        <circle cx="50" cy="30" r="4" fill="#4caf50"/>
+                        <circle cx="250" cy="30" r="4" fill="#4caf50"/>
+                        <circle cx="50" cy="120" r="4" fill="#4caf50"/>
+                        <circle cx="250" cy="120" r="4" fill="#4caf50"/>
+                        
+                        <text x="150" y="80" text-anchor="middle" font-size="14" font-weight="bold">HOPPBORG</text>
+                        <text x="150" y="95" text-anchor="middle" font-size="10">${app.lang === 'sv' ? '(ovanifrån)' : '(top view)'}</text>
+                    </svg>
+                    
+                    <div class="space-y-2 text-sm">
+                        <p class="bg-green-50 p-2 rounded border-l-4 border-green-500">
+                            <strong class="text-green-700">✓ ${app.lang === 'sv' ? 'Rätt' : 'Correct'}:</strong> ${app.lang === 'sv' ? 'Mät på marknivå mellan ytterkanterna' : 'Measure at ground level between outer edges'}
+                        </p>
+                        <p class="bg-red-50 p-2 rounded border-l-4 border-red-500">
+                            <strong class="text-red-700">✗ ${app.lang === 'sv' ? 'Fel' : 'Wrong'}:</strong> ${app.lang === 'sv' ? 'Mät inte diagonalt eller i luften' : 'Do not measure diagonally or in the air'}
+                        </p>
+                    </div>
+                `,
+                
+                width: `
+                    <h3 class="font-bold text-lg mb-3">📏 ${app.lang === 'sv' ? 'Hur mäter man bredd?' : 'How to measure width?'}</h3>
+                    
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                        <p class="font-semibold mb-2">${app.lang === 'sv' ? '⚠️ VIKTIGT: Bredd = horisontellt mått tvärs över' : '⚠️ IMPORTANT: Width = horizontal measurement across'}</p>
+                        <p class="text-sm">${app.lang === 'sv' ? 'Mät från kant till kant i tvärriktningen på marken när hoppborgen är uppblåst.' : 'Measure from edge to edge across the width on the ground when inflated.'}</p>
+                    </div>
+                    
+                    <svg viewBox="0 0 300 150" class="w-full max-w-md border-2 rounded bg-white mb-3 mx-auto">
+                        <!-- Hoppborg ovanifrån -->
+                        <rect x="50" y="30" width="200" height="90" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>
+                        
+                        <!-- Breddmätning -->
+                        <line x1="265" y1="30" x2="265" y2="120" stroke="#ff9800" stroke-width="3"/>
+                        <line x1="260" y1="30" x2="270" y2="30" stroke="#ff9800" stroke-width="2"/>
+                        <line x1="260" y1="120" x2="270" y2="120" stroke="#ff9800" stroke-width="2"/>
+                        <text x="280" y="75" font-size="12" fill="#ff9800" font-weight="bold">B</text>
+                        <text x="280" y="87" font-size="12" fill="#ff9800" font-weight="bold">R</text>
+                        <text x="280" y="99" font-size="12" fill="#ff9800" font-weight="bold">E</text>
+                        <text x="280" y="111" font-size="12" fill="#ff9800" font-weight="bold">D</text>
+                        <text x="280" y="123" font-size="12" fill="#ff9800" font-weight="bold">D</text>
+                        
+                        <!-- Fästpunkter -->
+                        <circle cx="50" cy="30" r="4" fill="#4caf50"/>
+                        <circle cx="250" cy="30" r="4" fill="#4caf50"/>
+                        <circle cx="50" cy="120" r="4" fill="#4caf50"/>
+                        <circle cx="250" cy="120" r="4" fill="#4caf50"/>
+                        
+                        <text x="150" y="80" text-anchor="middle" font-size="14" font-weight="bold">HOPPBORG</text>
+                    </svg>
+                    
+                    <div class="space-y-2 text-sm">
+                        <p class="bg-green-50 p-2 rounded border-l-4 border-green-500">
+                            <strong class="text-green-700">✓ ${app.lang === 'sv' ? 'Rätt' : 'Correct'}:</strong> ${app.lang === 'sv' ? 'Mät vinkelrätt mot längdriktningen' : 'Measure perpendicular to the length'}
+                        </p>
+                    </div>
+                `,
+                
+                height: `
+                    <h3 class="font-bold text-lg mb-3">📏 ${app.lang === 'sv' ? 'Hur mäter man höjd?' : 'How to measure height?'}</h3>
+                    
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                        <p class="font-semibold mb-2">${app.lang === 'sv' ? '⚠️ VIKTIGT: Höjd = väggarnas höjd' : '⚠️ IMPORTANT: Height = wall height'}</p>
+                        <p class="text-sm">${app.lang === 'sv' ? 'Mät från marken till där väggarna slutar - INTE till dekorationer på taket!' : 'Measure from ground to where walls end - NOT to roof decorations!'}</p>
                     </div>
                     
                     <svg viewBox="0 0 200 150" class="w-full max-w-xs border-2 rounded bg-white mb-3 mx-auto">
                         <rect x="20" y="80" width="160" height="60" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>
                         <line x1="20" y1="140" x2="180" y2="140" stroke="#000" stroke-width="2"/>
-                        <text x="100" y="155" text-anchor="middle" font-size="10" font-weight="bold">MARK</text>
+                        <text x="100" y="155" text-anchor="middle" font-size="10" font-weight="bold">${app.lang === 'sv' ? 'MARK' : 'GROUND'}</text>
                         
                         <!-- Höjdmätning -->
                         <line x1="10" y1="80" x2="10" y2="140" stroke="#f44336" stroke-width="3"/>
@@ -301,17 +417,26 @@
                         <circle cx="100" cy="50" r="20" fill="#ffd700" opacity="0.3"/>
                         <line x1="90" y1="50" x2="110" y2="50" stroke="#666" stroke-width="2"/>
                         <line x1="100" y1="40" x2="100" y2="60" stroke="#666" stroke-width="2"/>
-                        <text x="100" y="45" text-anchor="middle" font-size="8">Dekor</text>
-                        <text x="100" y="55" text-anchor="middle" font-size="7">(räknas EJ)</text>
+                        <text x="100" y="45" text-anchor="middle" font-size="8">${app.lang === 'sv' ? 'Dekor' : 'Decor'}</text>
+                        <text x="100" y="55" text-anchor="middle" font-size="7">${app.lang === 'sv' ? '(räknas EJ)' : '(NOT counted)'}</text>
                     </svg>
                     
                     <div class="space-y-2 text-sm">
                         <p class="bg-green-50 p-2 rounded border-l-4 border-green-500">
-                            <strong class="text-green-700">✓ Rätt:</strong> Mät till väggarnas överkant (där luften är)
+                            <strong class="text-green-700">✓ ${app.lang === 'sv' ? 'Rätt' : 'Correct'}:</strong> ${app.lang === 'sv' ? 'Mät till väggarnas överkant (där luften är)' : 'Measure to top of walls (where the air is)'}
                         </p>
                         <p class="bg-red-50 p-2 rounded border-l-4 border-red-500">
-                            <strong class="text-red-700">✗ Fel:</strong> Inkludera inte flaggor, antenner eller dekor på taket
+                            <strong class="text-red-700">✗ ${app.lang === 'sv' ? 'Fel' : 'Wrong'}:</strong> ${app.lang === 'sv' ? 'Inkludera inte flaggor, antenner eller dekor på taket' : 'Do not include flags, antennas or roof decorations'}
                         </p>
+                    </div>
+                    
+                    <div class="bg-yellow-50 p-3 rounded mt-3">
+                        <p class="text-sm font-semibold mb-2">${app.lang === 'sv' ? '📌 OBS! Olika höjder:' : '📌 NOTE! Different heights:'}</p>
+                        <ul class="text-sm list-disc ml-5 space-y-1">
+                            <li><strong>${app.lang === 'sv' ? 'Totalhöjd' : 'Total height'}</strong>: ${app.lang === 'sv' ? 'För volymsberäkning' : 'For volume calculation'}</li>
+                            <li><strong>${app.lang === 'sv' ? 'Plattformshöjd' : 'Platform height'}</strong>: ${app.lang === 'sv' ? 'Från mark till lekyta' : 'From ground to play surface'}</li>
+                            <li><strong>${app.lang === 'sv' ? 'Vägghöjd' : 'Wall height'}</strong>: ${app.lang === 'sv' ? 'Från lekyta till väggtop (kan variera per sida!)' : 'From play surface to wall top (can vary per side!)'}</li>
+                        </ul>
                     </div>
                     
                     <p class="text-xs text-gray-600 mt-3 italic">Ref: Annex A - "area of exposed surface"</p>
@@ -547,11 +672,16 @@
                 `,
                 
                 corners: `
-                    <h3 class="font-bold mb-3">🕸️ Nät måste nå hörnen</h3>
+                    <h3 class="font-bold mb-3">${app.lang === 'sv' ? '🕸️ Nät måste nå hörnen' : '🕸️ Nets must reach corners'}</h3>
+                    
+                    <div class="bg-red-50 border-l-4 border-red-500 p-3 mb-3">
+                        <p class="text-sm font-semibold">${app.lang === 'sv' ? '🚨 VANLIGT FEL PÅ KINESISKA HOPPBORGAR!' : '🚨 COMMON ERROR IN CHINESE BOUNCY CASTLES!'}</p>
+                        <p class="text-sm">${app.lang === 'sv' ? 'Nätet monteras bara på sidorna - hörnen lämnas öppna. Barn kan fastna!' : 'Net is only mounted on sides - corners left open. Children can get trapped!'}</p>
+                    </div>
                     
                     <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 mb-3">
-                        <p class="text-sm font-semibold">Varför är detta viktigt?</p>
-                        <p class="text-sm">Barn kan fastna i hörn där nätet inte når. Detta är ett vanligt fel på billiga kinesiska hoppborgar!</p>
+                        <p class="text-sm font-semibold">${app.lang === 'sv' ? 'Varför är detta viktigt?' : 'Why is this important?'}</p>
+                        <p class="text-sm">${app.lang === 'sv' ? 'Öppna hörn = risk för att barn fastnar mellan väggen och nätet, eller faller ut i hörnet.' : 'Open corners = risk of children getting trapped between wall and net, or falling out at corners.'}</p>
                     </div>
                     
                     <svg viewBox="0 0 200 200" class="w-full border-2 rounded bg-white mb-3">
@@ -559,36 +689,41 @@
                         <rect x="20" y="20" width="160" height="160" fill="#e3f2fd" stroke="#2196f3" stroke-width="2"/>
                         
                         <!-- Hörn som måste täckas (röda cirklar) -->
-                        <circle cx="20" cy="20" r="15" fill="none" stroke="#f44336" stroke-width="3"/>
-                        <circle cx="180" cy="20" r="15" fill="none" stroke="#f44336" stroke-width="3"/>
-                        <circle cx="20" cy="180" r="15" fill="none" stroke="#f44336" stroke-width="3"/>
-                        <circle cx="180" cy="180" r="15" fill="none" stroke="#f44336" stroke-width="3"/>
+                        <circle cx="20" cy="20" r="18" fill="none" stroke="#f44336" stroke-width="4"/>
+                        <circle cx="180" cy="20" r="18" fill="none" stroke="#f44336" stroke-width="4"/>
+                        <circle cx="20" cy="180" r="18" fill="none" stroke="#f44336" stroke-width="4"/>
+                        <circle cx="180" cy="180" r="18" fill="none" stroke="#f44336" stroke-width="4"/>
                         
                         <!-- Nät som når hörnen (gröna linjer) -->
-                        <line x1="20" y1="20" x2="60" y2="60" stroke="#4caf50" stroke-width="3"/>
-                        <line x1="180" y1="20" x2="140" y2="60" stroke="#4caf50" stroke-width="3"/>
-                        <line x1="20" y1="180" x2="60" y2="140" stroke="#4caf50" stroke-width="3"/>
-                        <line x1="180" y1="180" x2="140" y2="140" stroke="#4caf50" stroke-width="3"/>
+                        <line x1="20" y1="20" x2="60" y2="60" stroke="#4caf50" stroke-width="4"/>
+                        <line x1="180" y1="20" x2="140" y2="60" stroke="#4caf50" stroke-width="4"/>
+                        <line x1="20" y1="180" x2="60" y2="140" stroke="#4caf50" stroke-width="4"/>
+                        <line x1="180" y1="180" x2="140" y2="140" stroke="#4caf50" stroke-width="4"/>
                         
                         <!-- Nät på sidor -->
-                        <line x1="20" y1="60" x2="20" y2="140" stroke="#4caf50" stroke-width="2" opacity="0.5"/>
-                        <line x1="180" y1="60" x2="180" y2="140" stroke="#4caf50" stroke-width="2" opacity="0.5"/>
-                        <line x1="60" y1="20" x2="140" y2="20" stroke="#4caf50" stroke-width="2" opacity="0.5"/>
-                        <line x1="60" y1="180" x2="140" y2="180" stroke="#4caf50" stroke-width="2" opacity="0.5"/>
+                        <line x1="20" y1="60" x2="20" y2="140" stroke="#4caf50" stroke-width="3" opacity="0.5"/>
+                        <line x1="180" y1="60" x2="180" y2="140" stroke="#4caf50" stroke-width="3" opacity="0.5"/>
+                        <line x1="60" y1="20" x2="140" y2="20" stroke="#4caf50" stroke-width="3" opacity="0.5"/>
+                        <line x1="60" y1="180" x2="140" y2="180" stroke="#4caf50" stroke-width="3" opacity="0.5"/>
                         
-                        <text x="100" y="100" text-anchor="middle" font-weight="bold" font-size="12">NÄT MÅSTE</text>
-                        <text x="100" y="115" text-anchor="middle" font-weight="bold" font-size="12">NÅ ALLA HÖRN</text>
+                        <text x="100" y="95" text-anchor="middle" font-weight="bold" font-size="14" fill="#4caf50">${app.lang === 'sv' ? 'NÄT MÅSTE' : 'NET MUST'}</text>
+                        <text x="100" y="112" text-anchor="middle" font-weight="bold" font-size="14" fill="#4caf50">${app.lang === 'sv' ? 'NÅ ALLA HÖRN' : 'REACH ALL CORNERS'}</text>
                     </svg>
                     
+                    <div class="bg-white border-2 border-gray-300 rounded p-3 mb-3">
+                        <p class="text-sm font-semibold mb-2">${app.lang === 'sv' ? '📸 Verkligt exempel (UNDERKÄND):' : '📸 Real example (FAILED):'}</p>
+                        <p class="text-sm text-red-700">${app.lang === 'sv' ? 'På bilden ser du svart nät som INTE når det gula hörnet. Detta är exakt det felet som många billiga hoppborgar har!' : 'In the photo you see black net that does NOT reach the yellow corner. This is exactly the error many cheap bouncy castles have!'}</p>
+                    </div>
+                    
                     <div class="space-y-2 text-sm">
-                        <div class="bg-red-50 p-2 rounded">
-                            <p class="font-semibold text-red-700">❌ Vanligt fel:</p>
-                            <p>Nätet monteras bara på sidorna, hörnen är öppna</p>
+                        <div class="bg-red-50 p-2 rounded border-l-4 border-red-500">
+                            <p class="font-semibold text-red-700">❌ ${app.lang === 'sv' ? 'UNDERKÄNT' : 'FAILED'}:</p>
+                            <p>${app.lang === 'sv' ? 'Nätet monteras bara på sidorna → hörnen är öppna' : 'Net only mounted on sides → corners are open'}</p>
                         </div>
                         
-                        <div class="bg-green-50 p-2 rounded">
-                            <p class="font-semibold text-green-700">✓ Rätt:</p>
-                            <p>Nätet går hela vägen till varje hörn (röda cirklar i bild)</p>
+                        <div class="bg-green-50 p-2 rounded border-l-4 border-green-500">
+                            <p class="font-semibold text-green-700">✓ ${app.lang === 'sv' ? 'GODKÄNT' : 'APPROVED'}:</p>
+                            <p>${app.lang === 'sv' ? 'Nätet går hela vägen till varje hörn (röda cirklar ovan)' : 'Net goes all the way to each corner (red circles above)'}</p>
                         </div>
                     </div>
                     
@@ -727,39 +862,81 @@
             
             document.getElementById('app').innerHTML = `
                 <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-lg shadow-lg p-6 mb-6">
-                    <div class="text-sm opacity-90">EN 14960-1:2019</div>
-                    <h1 class="text-3xl font-bold">Hoppborg Validator</h1>
-                    <p class="text-sm mt-1 opacity-90">Baserad på Konsumentverkets marknadskontroll</p>
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="text-sm opacity-90">EN 14960-1:2019</div>
+                            <h1 class="text-3xl font-bold">${app.lang === 'sv' ? 'Hoppborg Validator' : 'Bouncy Castle Validator'}</h1>
+                            <p class="text-sm mt-1 opacity-90">${app.lang === 'sv' ? 'Baserad på Konsumentverkets marknadskontroll' : 'Based on Swedish Consumer Agency market surveillance'}</p>
+                        </div>
+                        <button onclick="toggleLang()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                            🌍 ${app.lang === 'sv' ? 'English' : 'Svenska'}
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Grunduppgifter -->
                 <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4">📏 Grunduppgifter</h2>
+                    <h2 class="text-xl font-bold mb-4">📏 ${app.lang === 'sv' ? 'Grunduppgifter' : 'Basic Information'}</h2>
                     <div class="grid grid-cols-3 gap-4 mb-4">
                         <div>
                             <label class="block text-sm font-medium mb-1">
-                                Längd (m) * 
-                                <button onclick="showInfo('height')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
+                                ${app.lang === 'sv' ? 'Längd (m) *' : 'Length (m) *'}
+                                <button onclick="showInfo('length')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
                             </label>
                             <input type="number" step="0.1" id="length" value="${d.length}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Kant till kant i längdriktning</p>
+                            <p class="text-xs text-gray-500 mt-1">${app.lang === 'sv' ? 'Kant till kant i längdriktning' : 'Edge to edge lengthwise'}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">
-                                Bredd (m) *
-                                <button onclick="showInfo('height')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
+                                ${app.lang === 'sv' ? 'Bredd (m) *' : 'Width (m) *'}
+                                <button onclick="showInfo('width')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
                             </label>
                             <input type="number" step="0.1" id="width" value="${d.width}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Kant till kant i tvärriktning</p>
+                            <p class="text-xs text-gray-500 mt-1">${app.lang === 'sv' ? 'Kant till kant i tvärriktning' : 'Edge to edge crosswise'}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">
-                                Höjd (m) *
+                                ${app.lang === 'sv' ? 'Höjd (m) *' : 'Height (m) *'}
                                 <button onclick="showInfo('height')" class="inline-block w-5 h-5 bg-blue-500 text-white rounded-full text-xs hover:bg-blue-600">?</button>
                             </label>
                             <input type="number" step="0.1" id="height" value="${d.height}" class="w-full p-2 border rounded">
-                            <p class="text-xs text-gray-500 mt-1">Mark → vägg (EJ dekorationer!)</p>
+                            <p class="text-xs text-gray-500 mt-1">${app.lang === 'sv' ? 'Mark → vägg (EJ dekorationer!)' : 'Ground → wall (NO decorations!)'}</p>
                         </div>
+                    </div>
+                    
+                    <!-- Individuella höjder per sida -->
+                    <div class="border-t pt-4 mt-4">
+                        <label class="flex items-center gap-2 mb-3">
+                            <input type="checkbox" id="useIndividualHeights" ${d.useIndividualHeights?'checked':''} class="w-4 h-4">
+                            <span class="text-sm font-semibold">
+                                🎯 Olika höjder per sida (för exakt Annex A-beräkning)
+                            </span>
+                        </label>
+                        <p class="text-xs text-gray-600 mb-3">
+                            Aktivera detta om sidorna har olika höjder (t.ex. öppen ingång fram, högre baksida). 
+                            Annars används den generella höjden ovan för alla sidor.
+                        </p>
+                        
+                        ${d.useIndividualHeights ? `
+                        <div class="grid grid-cols-4 gap-3 bg-blue-50 p-3 rounded">
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Höjd Sida A (Fram)</label>
+                                <input type="number" step="0.1" id="heightA" value="${d.heightA}" class="w-full p-2 border rounded text-sm" placeholder="${d.height}">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Höjd Sida B (Höger)</label>
+                                <input type="number" step="0.1" id="heightB" value="${d.heightB}" class="w-full p-2 border rounded text-sm" placeholder="${d.height}">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Höjd Sida C (Bak)</label>
+                                <input type="number" step="0.1" id="heightC" value="${d.heightC}" class="w-full p-2 border rounded text-sm" placeholder="${d.height}">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">Höjd Sida D (Vänster)</label>
+                                <input type="number" step="0.1" id="heightD" value="${d.heightD}" class="w-full p-2 border rounded text-sm" placeholder="${d.height}">
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
 
@@ -928,9 +1105,10 @@
                         <div>
                             <label class="block text-sm font-medium mb-1">
                                 Sida ${s}: Fästpunkter
-                                <span class="text-xs text-gray-500">(Krav: ${c.anchors[s].need} st)</span>
+                                <span class="text-xs text-gray-500">(Krav: ${c.anchors[s].need} st @ ${c.anchors[s].height.toFixed(1)}m höjd)</span>
                             </label>
                             <input type="number" id="anchor${s}" value="${d['anchor'+s]}" class="w-full p-2 border rounded">
+                            ${d.useIndividualHeights ? `<p class="text-xs text-blue-600 mt-1">Höjd: ${c.anchors[s].height.toFixed(1)}m × ${c.anchors[s].len}m = ${(c.anchors[s].len * c.anchors[s].height).toFixed(1)}m² yta</p>` : ''}
                         </div>
                         `).join('') : ''}
                         <div>
@@ -1170,7 +1348,7 @@
             `;
 
             // Event listeners
-            ['length','width','height','type','platformHeight','wallHeight','hasSlide','slideHeight',
+            ['length','width','height','heightA','heightB','heightC','heightD','type','platformHeight','wallHeight','hasSlide','slideHeight',
              'runoutLength','entranceHeight','entranceTreadDepth','anchorA','anchorB','anchorC','anchorD',
              'anchorAngle','blowersNeeded','blowerPower','blowerTubeLength','productId','idVisible',
              'manufacturerMaxUsers','manufacturerUserHeight','hasRopes','hasNetting','nettingMesh','nettingCorners'].forEach(f => {
@@ -1178,7 +1356,7 @@
                 if (el) el.addEventListener('change', e => { app.data[f] = e.target.value; render(); });
             });
 
-            ['hasSafetyInstructions', 'hasStopWall'].forEach(f => {
+            ['hasSafetyInstructions', 'hasStopWall', 'useIndividualHeights'].forEach(f => {
                 const el = document.getElementById(f);
                 if (el) el.addEventListener('change', e => { app.data[f] = e.target.checked; render(); });
             });
