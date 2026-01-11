@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hoppborg Validator - EN 14960-1:2019</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body class="bg-gray-50">
     <div id="app" class="max-w-4xl mx-auto p-4"></div>
@@ -22,7 +24,7 @@
                 length: '', width: '', height: '', type: '', productId: '', idVisible: '',
                 hasSafetyInstructions: false, hasRopes: '', anchorA: '', anchorB: '', anchorC: '', anchorD: '',
                 anchorAngle: '', hasNetting: '', nettingMesh: '', nettingCorners: '',
-                blowersNeeded: '', blowerPower: '', maxUsers: ''
+                blowersNeeded: '', blowerPower: '', maxUsers: '', images: []
             },
             result: null, cameraActive: false, stream: null
         };
@@ -67,7 +69,7 @@
             };
 
             const anchors = {
-                A: { name: 'Sida A (Front)', len: L, need: calcSide(L * H) },
+                A: { name: 'Sida A', len: L, need: calcSide(L * H) },
                 B: { name: 'Sida B (Höger)', len: W, need: calcSide(W * H) },
                 C: { name: 'Sida C (Back)', len: L, need: calcSide(L * H) },
                 D: { name: 'Sida D (Vänster)', len: W, need: calcSide(W * H) }
@@ -151,6 +153,131 @@
             render();
         }
 
+        function addImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                app.data.images.push({
+                    data: e.target.result,
+                    name: file.name,
+                    date: new Date().toISOString()
+                });
+                localStorage.setItem('hoppborg', JSON.stringify(app));
+                render();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeImage(index) {
+            app.data.images.splice(index, 1);
+            localStorage.setItem('hoppborg', JSON.stringify(app));
+            render();
+        }
+
+        async function exportPDF() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            let y = 20;
+
+            // Titel
+            pdf.setFontSize(20);
+            pdf.setTextColor(37, 99, 235);
+            pdf.text('Hoppborg Validator', pageWidth / 2, y, { align: 'center' });
+            y += 10;
+            pdf.setFontSize(10);
+            pdf.setTextColor(100);
+            pdf.text('EN 14960-1:2019', pageWidth / 2, y, { align: 'center' });
+            y += 15;
+
+            // Grunduppgifter
+            pdf.setFontSize(14);
+            pdf.setTextColor(0);
+            pdf.text('Grunduppgifter', 20, y);
+            y += 8;
+            pdf.setFontSize(10);
+            pdf.text(`Längd: ${app.data.length} m | Bredd: ${app.data.width} m | Höjd: ${app.data.height} m`, 20, y);
+            y += 6;
+            pdf.text(`Typ: ${app.data.type || 'Ej angiven'}`, 20, y);
+            y += 6;
+            pdf.text(`Produkt-ID: ${app.data.productId || 'Saknas'}`, 20, y);
+            y += 10;
+
+            // Resultat
+            if (app.result) {
+                pdf.setFontSize(16);
+                pdf.setTextColor(app.result.ok ? 34 : 220, app.result.ok ? 197 : 38, app.result.ok ? 94 : 38);
+                pdf.text(app.result.ok ? '✓ GODKÄND' : '✗ UNDERKÄND', 20, y);
+                y += 10;
+
+                if (app.result.issues.length > 0) {
+                    pdf.setFontSize(12);
+                    pdf.setTextColor(0);
+                    pdf.text('Kritiska fel:', 20, y);
+                    y += 8;
+                    pdf.setFontSize(10);
+                    
+                    app.result.issues.forEach(issue => {
+                        if (y > pageHeight - 30) {
+                            pdf.addPage();
+                            y = 20;
+                        }
+                        pdf.setTextColor(220, 38, 38);
+                        pdf.text(`• ${issue.cat}: ${issue.msg}`, 25, y);
+                        y += 5;
+                        pdf.setTextColor(100);
+                        pdf.setFontSize(8);
+                        pdf.text(`  Referens: ${issue.ref}`, 25, y);
+                        y += 7;
+                        pdf.setFontSize(10);
+                    });
+                }
+            }
+
+            // Bilder
+            if (app.data.images.length > 0) {
+                y += 5;
+                if (y > pageHeight - 80) {
+                    pdf.addPage();
+                    y = 20;
+                }
+                pdf.setFontSize(12);
+                pdf.setTextColor(0);
+                pdf.text('Bifogade bilder:', 20, y);
+                y += 10;
+
+                for (let i = 0; i < app.data.images.length; i++) {
+                    const img = app.data.images[i];
+                    try {
+                        const imgWidth = 80;
+                        const imgHeight = 60;
+                        
+                        if (y + imgHeight > pageHeight - 20) {
+                            pdf.addPage();
+                            y = 20;
+                        }
+                        
+                        pdf.addImage(img.data, 'JPEG', 20, y, imgWidth, imgHeight);
+                        y += imgHeight + 3;
+                        pdf.setFontSize(8);
+                        pdf.setTextColor(100);
+                        pdf.text(img.name, 20, y);
+                        y += 8;
+                    } catch (e) {
+                        console.error('Kunde inte lägga till bild:', e);
+                    }
+                }
+            }
+
+            // Footer
+            const timestamp = new Date().toLocaleString('sv-SE');
+            pdf.setFontSize(8);
+            pdf.setTextColor(150);
+            pdf.text(`Genererad: ${timestamp}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+            pdf.save(`hoppborg-inspektion-${new Date().toISOString().split('T')[0]}.pdf`);
+        }
+
         function render() {
             const c = calc();
             const d = app.data;
@@ -184,28 +311,28 @@
                             <label class="block text-sm font-medium mb-1">Typ</label>
                             <select id="type" class="w-full p-2 border rounded">
                                 <option value="">-- Välj --</option>
-                                <option value="flatbed">Flat-bed (4 öppna sidor)</option>
-                                <option value="castle">Castle (3 väggar, 1 öppen)</option>
-                                <option value="aframe">A-Frame inflatable</option>
-                                <option value="combo">Bounce/Slide kombination</option>
-                                <option value="multiplay">Multi-Play Center</option>
-                                <option value="obstacle">Hinderbana</option>
-                                <option value="slide">Inflatable slide</option>
-                                <option value="enclosed">Enclosed inflatable</option>
-                                <option value="softmountain">Soft mountain</option>
+                                <option value="flatbed" ${d.type==='flatbed'?'selected':''}>Flat-bed (4 öppna sidor)</option>
+                                <option value="castle" ${d.type==='castle'?'selected':''}>Castle (3 väggar, 1 öppen)</option>
+                                <option value="aframe" ${d.type==='aframe'?'selected':''}>A-Frame inflatable</option>
+                                <option value="combo" ${d.type==='combo'?'selected':''}>Bounce/Slide kombination</option>
+                                <option value="multiplay" ${d.type==='multiplay'?'selected':''}>Multi-Play Center</option>
+                                <option value="obstacle" ${d.type==='obstacle'?'selected':''}>Hinderbana</option>
+                                <option value="slide" ${d.type==='slide'?'selected':''}>Inflatable slide</option>
+                                <option value="enclosed" ${d.type==='enclosed'?'selected':''}>Enclosed inflatable</option>
+                                <option value="softmountain" ${d.type==='softmountain'?'selected':''}>Soft mountain</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Finns rep för att underlätta klättring?</label>
                             <select id="hasRopes" class="w-full p-2 border rounded">
                                 <option value="">-- Välj --</option>
-                                <option value="no">Nej</option>
-                                <option value="yes">Ja</option>
+                                <option value="no" ${d.hasRopes==='no'?'selected':''}>Nej</option>
+                                <option value="yes" ${d.hasRopes==='yes'?'selected':''}>Ja</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Har nät</label>
-                            <select id="hasNetting" class="w-full p-2 border rounded" onchange="app.data.hasNetting=this.value; render()">
+                            <select id="hasNetting" class="w-full p-2 border rounded">
                                 <option value="">-- Välj --</option>
                                 <option value="yes" ${d.hasNetting==='yes'?'selected':''}>Ja</option>
                                 <option value="no" ${d.hasNetting==='no'?'selected':''}>Nej</option>
@@ -223,8 +350,8 @@
                             </label>
                             <select id="nettingCorners" class="w-full p-2 border rounded">
                                 <option value="">-- Välj --</option>
-                                <option value="yes">Ja</option>
-                                <option value="no">Nej</option>
+                                <option value="yes" ${d.nettingCorners==='yes'?'selected':''}>Ja</option>
+                                <option value="no" ${d.nettingCorners==='no'?'selected':''}>Nej</option>
                             </select>
                         </div>
                         ` : ''}
@@ -252,7 +379,7 @@
                         <div class="text-center font-semibold mb-2">Översikt fästpunkter</div>
                         <svg viewBox="0 0 ${c.L * 40} ${c.W * 40}" class="w-full max-w-md mx-auto border-2 border-blue-500 bg-white rounded">
                             <rect x="0" y="0" width="${c.L * 40}" height="${c.W * 40}" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
-                            <text x="${c.L * 20}" y="20" text-anchor="middle" font-weight="bold" fill="#1e40af">Sida A (Front)</text>
+                            <text x="${c.L * 20}" y="20" text-anchor="middle" font-weight="bold" fill="#1e40af">Sida A</text>
                             <text x="${c.L * 40 - 10}" y="${c.W * 20}" text-anchor="end" font-weight="bold" fill="#1e40af" transform="rotate(-90 ${c.L * 40 - 10} ${c.W * 20})">B</text>
                             <text x="${c.L * 20}" y="${c.W * 40 - 5}" text-anchor="middle" font-weight="bold" fill="#1e40af">Sida C</text>
                             <text x="10" y="${c.W * 20}" font-weight="bold" fill="#1e40af" transform="rotate(-90 10 ${c.W * 20})">D</text>
@@ -308,8 +435,8 @@
                             <label class="block text-sm font-medium mb-1">ID synligt</label>
                             <select id="idVisible" class="w-full p-2 border rounded">
                                 <option value="">-- Välj --</option>
-                                <option value="yes">Ja</option>
-                                <option value="no">Nej</option>
+                                <option value="yes" ${d.idVisible==='yes'?'selected':''}>Ja</option>
+                                <option value="no" ${d.idVisible==='no'?'selected':''}>Nej</option>
                             </select>
                         </div>
                         <div class="col-span-2">
@@ -320,7 +447,27 @@
                         </div>
                     </div>
 
-                    <button onclick="validate()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700">
+                    <h3 class="text-lg font-semibold mb-3 pb-2 border-b-2 border-orange-600">Bilder</h3>
+                    <div class="mb-6">
+                        <label class="block w-full cursor-pointer bg-orange-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-orange-700 text-center">
+                            📸 Lägg till bild
+                            <input type="file" id="imageInput" accept="image/*" capture="environment" class="hidden">
+                        </label>
+                        
+                        ${d.images.length > 0 ? `
+                        <div class="mt-4 grid grid-cols-2 gap-4">
+                            ${d.images.map((img, i) => `
+                                <div class="relative border rounded-lg overflow-hidden">
+                                    <img src="${img.data}" class="w-full h-32 object-cover">
+                                    <button onclick="removeImage(${i})" class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center">×</button>
+                                    <div class="p-2 bg-gray-50 text-xs truncate">${img.name}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    <button onclick="validate()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 mb-3">
                         Validera
                     </button>
                 </div>
@@ -347,14 +494,20 @@
                     </div>
                     ` : ''}
 
-                    <button onclick="app.result=null; render()" class="w-full bg-gray-600 text-white py-2 rounded-lg">
-                        Ny validering
-                    </button>
+                    <div class="flex gap-3">
+                        <button onclick="exportPDF()" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700">
+                            📄 Spara som PDF
+                        </button>
+                        <button onclick="app.result=null; render()" class="flex-1 bg-gray-600 text-white py-3 rounded-lg font-medium hover:bg-gray-700">
+                            Ny validering
+                        </button>
+                    </div>
                 </div>
                 ` : ''}
             `;
 
-            ['length','width','height','type','hasRopes','nettingMesh','nettingCorners','blowersNeeded',
+            // Event listeners för inputs
+            ['length','width','height','type','hasRopes','hasNetting','nettingMesh','nettingCorners','blowersNeeded',
              'blowerPower','anchorA','anchorB','anchorC','anchorD','anchorAngle','productId','idVisible'].forEach(f => {
                 const el = document.getElementById(f);
                 if (el) el.addEventListener('change', e => { app.data[f] = e.target.value; render(); });
@@ -362,10 +515,22 @@
 
             const cb = document.getElementById('hasSafetyInstructions');
             if (cb) cb.addEventListener('change', e => { app.data.hasSafetyInstructions = e.target.checked; });
+
+            // Bilduppladdning
+            const imgInput = document.getElementById('imageInput');
+            if (imgInput) {
+                imgInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) addImage(file);
+                });
+            }
         }
 
         const saved = localStorage.getItem('hoppborg');
-        if (saved) app.data = JSON.parse(saved).data || app.data;
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            app.data = parsed.data || app.data;
+        }
         render();
     </script>
 </body>
